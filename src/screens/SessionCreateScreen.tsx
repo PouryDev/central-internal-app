@@ -6,29 +6,28 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
+import { BackButton } from '../components/BackButton';
 import { Button } from '../components/Button';
 import { Dropdown } from '../components/Dropdown';
 import { PlayerCard } from '../components/PlayerCard';
 import { Card } from '../components/Card';
 import { theme } from '../constants/theme';
-import {
-  facilitators,
-  halls,
-  menuItems,
-  type Player,
-  type MenuItem,
-} from '../data/mockData';
+import { useData } from '../context/DataContext';
+import { getTodayJalali } from '../utils/date';
+import type { Player, MenuItem, Session } from '../types';
 
 interface SessionCreateScreenProps {
   onBack: () => void;
-  onSubmitSession: () => void;
+  onSubmitSession: (session: Session) => void | Promise<void>;
 }
 
 export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
   onBack,
   onSubmitSession,
 }) => {
+  const { facilitators, halls, menuItems } = useData();
   const [selectedFacilitator, setSelectedFacilitator] = useState<string>();
   const [selectedHall, setSelectedHall] = useState<string>();
   const [time, setTime] = useState('20:00');
@@ -74,12 +73,36 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
     );
   };
 
+  const handleSubmit = async () => {
+    const facilitator = facilitators.find((f) => f.id === selectedFacilitator);
+    const hall = halls.find((h) => h.id === selectedHall);
+    if (!facilitator || !hall) {
+      Alert.alert('خطا', 'لطفاً گرداننده و سالن را انتخاب کنید.');
+      return;
+    }
+    const validPlayers = players.filter((p) => p.name.trim());
+    if (validPlayers.length === 0) {
+      Alert.alert('خطا', 'حداقل یک بازیکن با نام وارد کنید.');
+      return;
+    }
+    const session: Session = {
+      id: Date.now().toString(),
+      facilitator,
+      hall: hall.name,
+      time,
+      date: getTodayJalali(),
+      players: validPlayers,
+      status: 'pending',
+    };
+    await onSubmitSession(session);
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>← بازگشت</Text>
-        </TouchableOpacity>
+        <View style={styles.backButton}>
+          <BackButton onPress={onBack} />
+        </View>
         <Text style={styles.title}>ثبت سانس جدید</Text>
       </View>
 
@@ -183,7 +206,7 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
 
       <Button
         title="ثبت سانس"
-        onPress={onSubmitSession}
+        onPress={handleSubmit}
         style={styles.submitButton}
       />
     </ScrollView>
@@ -204,11 +227,6 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginBottom: theme.spacing.md,
-  },
-  backText: {
-    ...theme.typography.body,
-    color: theme.colors.primary,
-    fontFamily: 'Vazirmatn-Regular',
   },
   title: {
     ...theme.typography.h1,

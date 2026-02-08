@@ -29,24 +29,25 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm + 2,
+    paddingVertical: theme.spacing.xs + 2,
     borderRadius: theme.borderRadius.sm,
     alignSelf: 'flex-start',
   },
   pendingBadge: {
-    backgroundColor: theme.colors.warning + '20',
+    backgroundColor: theme.colors.warning + '25',
     borderWidth: 1,
     borderColor: theme.colors.warning,
   },
   paidBadge: {
-    backgroundColor: theme.colors.success + '20',
+    backgroundColor: theme.colors.success + '25',
     borderWidth: 1,
     borderColor: theme.colors.success,
   },
   badgeText: {
     ...theme.typography.caption,
     fontFamily: 'Vazirmatn-Regular',
+    fontSize: 12,
   },
   pendingText: {
     color: theme.colors.warning,
@@ -55,4 +56,3 @@ const styles = StyleSheet.create({
     color: theme.colors.success,
   },
 });
-

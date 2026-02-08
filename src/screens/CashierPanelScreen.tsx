@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { SessionCard } from '../components/SessionCard';
 import { FilterChips } from '../components/FilterChips';
+import { BackButton } from '../components/BackButton';
 import { theme } from '../constants/theme';
-import { sessions } from '../data/mockData';
+import { useData } from '../context/DataContext';
 
 interface CashierPanelScreenProps {
   onBack: () => void;
@@ -14,6 +15,7 @@ export const CashierPanelScreen: React.FC<CashierPanelScreenProps> = ({
   onBack,
   onSessionPress,
 }) => {
+  const { sessions, loading } = useData();
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const filterChips = [
@@ -31,12 +33,20 @@ export const CashierPanelScreen: React.FC<CashierPanelScreenProps> = ({
 
   const onStatusFilterChange = () => {};
 
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>← بازگشت</Text>
-        </TouchableOpacity>
+        <View style={styles.backButton}>
+          <BackButton onPress={onBack} />
+        </View>
         <Text style={styles.title}>پنل صندوق‌دار</Text>
       </View>
 
@@ -75,11 +85,6 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginBottom: theme.spacing.md,
-  },
-  backText: {
-    ...theme.typography.body,
-    color: theme.colors.primary,
-    fontFamily: 'Vazirmatn-Regular',
   },
   title: {
     ...theme.typography.h1,

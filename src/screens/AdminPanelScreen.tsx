@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { BackButton } from '../components/BackButton';
 import { FacilitatorsScreen } from './FacilitatorsScreen';
 import { MenuScreen } from './MenuScreen';
 import { StatisticsScreen } from './StatisticsScreen';
@@ -25,32 +26,35 @@ export const AdminPanelScreen: React.FC<AdminPanelScreenProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>← بازگشت</Text>
-        </TouchableOpacity>
+        <View style={styles.backButton}>
+          <BackButton onPress={onBack} />
+        </View>
         <Text style={styles.title}>پنل مدیریت</Text>
       </View>
 
-      <View style={styles.tabsContainer}>
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={[
-              styles.tab,
-              activeTab === tab.id && styles.activeTab,
-            ]}
-            onPress={() => setActiveTab(tab.id)}
-          >
-            <Text
+      <View style={styles.tabsWrapper}>
+        <View style={styles.tabsContainer}>
+          {tabs.map((tab) => (
+            <TouchableOpacity
+              key={tab.id}
               style={[
-                styles.tabText,
-                activeTab === tab.id && styles.activeTabText,
+                styles.tab,
+                activeTab === tab.id && styles.activeTab,
               ]}
+              onPress={() => setActiveTab(tab.id)}
+              activeOpacity={0.8}
             >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === tab.id && styles.activeTabText,
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -74,43 +78,43 @@ const styles = StyleSheet.create({
   backButton: {
     marginBottom: theme.spacing.md,
   },
-  backText: {
-    ...theme.typography.body,
-    color: theme.colors.primary,
-    fontFamily: 'Vazirmatn-Regular',
-  },
   title: {
     ...theme.typography.h1,
     color: theme.colors.text,
     fontFamily: 'Vazirmatn-Bold',
   },
+  tabsWrapper: {
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+  },
   tabsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: theme.spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.xs,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   tab: {
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-    marginLeft: theme.spacing.sm,
+    flex: 1,
+    paddingVertical: theme.spacing.sm + 2,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
   },
   activeTab: {
-    borderBottomColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary,
   },
   tabText: {
-    ...theme.typography.body,
+    ...theme.typography.caption,
     color: theme.colors.textSecondary,
     fontFamily: 'Vazirmatn-Regular',
   },
   activeTabText: {
-    color: theme.colors.primary,
-    fontWeight: '600',
+    color: theme.colors.text,
+    fontFamily: 'Vazirmatn-Bold',
   },
   content: {
     flex: 1,
   },
 });
-

@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { I18nManager } from 'react-native';
-import { loadFonts } from './src/utils/fonts.native';
+import { loadFonts } from './src/utils/fonts';
+import { DataProvider, useData } from './src/context/DataContext';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { SessionCreateScreen } from './src/screens/SessionCreateScreen';
 import { CashierPanelScreen } from './src/screens/CashierPanelScreen';
 import { SessionDetailsScreen } from './src/screens/SessionDetailsScreen';
 import { AdminPanelScreen } from './src/screens/AdminPanelScreen';
 import { theme } from './src/constants/theme';
+import type { Session } from './src/types';
 
 type Screen =
   | 'home'
@@ -16,10 +18,11 @@ type Screen =
   | 'session-details'
   | 'admin-panel';
 
-export default function App() {
+function AppContent() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
+  const { addSession, updateSessionStatus } = useData();
 
   useEffect(() => {
     // Enable RTL
@@ -57,15 +60,13 @@ export default function App() {
     setCurrentScreen('session-details');
   };
 
-  const handleSubmitSession = () => {
-    // Placeholder function
-    console.log('Session submitted');
+  const handleSubmitSession = async (session: Session) => {
+    await addSession(session);
     handleBack();
   };
 
-  const handleMarkAsPaid = () => {
-    // Placeholder function
-    console.log('Marked as paid');
+  const handleMarkAsPaid = async () => {
+    await updateSessionStatus(selectedSessionId, 'paid');
     handleBack();
   };
 
@@ -110,6 +111,14 @@ export default function App() {
         <AdminPanelScreen onBack={handleBack} />
       )}
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <DataProvider>
+      <AppContent />
+    </DataProvider>
   );
 }
 

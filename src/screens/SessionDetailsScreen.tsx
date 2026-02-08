@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { BackButton } from '../components/BackButton';
 import { Button } from '../components/Button';
 import { PlayerCard } from '../components/PlayerCard';
 import { Card } from '../components/Card';
 import { StatusBadge } from '../components/StatusBadge';
 import { theme } from '../constants/theme';
-import { sessions } from '../data/mockData';
+import { useData } from '../context/DataContext';
 
 interface SessionDetailsScreenProps {
   sessionId: string;
@@ -18,7 +19,16 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
   onBack,
   onMarkAsPaid,
 }) => {
+  const { sessions, loading } = useData();
   const session = sessions.find((s) => s.id === sessionId);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   if (!session) {
     return (
@@ -36,9 +46,9 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backText}>← بازگشت</Text>
-        </TouchableOpacity>
+        <View style={styles.backButton}>
+          <BackButton onPress={onBack} />
+        </View>
         <Text style={styles.title}>جزئیات سانس</Text>
       </View>
 
@@ -108,11 +118,6 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginBottom: theme.spacing.md,
-  },
-  backText: {
-    ...theme.typography.body,
-    color: theme.colors.primary,
-    fontFamily: 'Vazirmatn-Regular',
   },
   title: {
     ...theme.typography.h1,

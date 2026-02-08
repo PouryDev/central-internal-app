@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Card } from './Card';
 import { ToggleSwitch } from './ToggleSwitch';
 import { theme } from '../constants/theme';
-import { Player } from '../data/mockData';
+import type { Player } from '../types';
 
 interface PlayerCardProps {
   player: Player;

@@ -33,8 +33,9 @@ export const Dropdown: React.FC<DropdownProps> = ({
   return (
     <View>
       <TouchableOpacity
-        style={styles.dropdown}
+        style={[styles.dropdown, isOpen && styles.dropdownFocused]}
         onPress={() => setIsOpen(true)}
+        activeOpacity={0.8}
       >
         <Text
           style={[
@@ -44,7 +45,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
         >
           {selectedOption ? selectedOption.label : placeholder}
         </Text>
-        <Text style={styles.arrow}>▼</Text>
+        <Text style={[styles.arrow, isOpen && styles.arrowOpen]}>▼</Text>
       </TouchableOpacity>
 
       <Modal
@@ -72,6 +73,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
                     onSelect(item);
                     setIsOpen(false);
                   }}
+                  activeOpacity={0.7}
                 >
                   <Text
                     style={[
@@ -102,6 +104,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
+  dropdownFocused: {
+    borderColor: theme.colors.primary,
+  },
   dropdownText: {
     ...theme.typography.body,
     color: theme.colors.text,
@@ -116,17 +121,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginLeft: theme.spacing.sm,
   },
+  arrowOpen: {
+    color: theme.colors.primary,
+  },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalContent: {
     backgroundColor: theme.colors.card,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.lg,
     width: '80%',
     maxHeight: '60%',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    overflow: 'hidden',
     ...theme.shadows.lg,
   },
   option: {
@@ -135,7 +146,7 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   selectedOption: {
-    backgroundColor: theme.colors.primary + '20',
+    backgroundColor: theme.colors.primary + '30',
   },
   optionText: {
     ...theme.typography.body,
@@ -144,7 +155,6 @@ const styles = StyleSheet.create({
   },
   selectedOptionText: {
     color: theme.colors.primary,
-    fontWeight: '600',
+    fontFamily: 'Vazirmatn-Bold',
   },
 });
-

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { Card } from '../components/Card';
 import { FilterChips } from '../components/FilterChips';
 import { theme } from '../constants/theme';
-import { facilitators, sessions } from '../data/mockData';
+import { useData } from '../context/DataContext';
 
 export const StatisticsScreen: React.FC = () => {
+  const { facilitators, sessions, loading } = useData();
   const [guestFilter, setGuestFilter] = useState<string>('all');
   const [sessionFilters, setSessionFilters] = useState({
     facilitator: 'all',
@@ -22,6 +23,14 @@ export const StatisticsScreen: React.FC = () => {
 
   const onGuestFilterChange = () => {};
   const onSessionFilterChange = () => {};
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
 
   const getFacilitatorStats = () => {
     return facilitators.map((facilitator) => {

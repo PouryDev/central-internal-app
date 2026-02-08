@@ -52,16 +52,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
   chip: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm + 2,
     borderRadius: theme.borderRadius.full,
     backgroundColor: theme.colors.card,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    marginLeft: theme.spacing.sm,
-    marginBottom: theme.spacing.sm,
   },
   selectedChip: {
     backgroundColor: theme.colors.primary,
@@ -74,7 +73,6 @@ const styles = StyleSheet.create({
   },
   selectedChipText: {
     color: theme.colors.text,
-    fontWeight: '600',
+    fontFamily: 'Vazirmatn-Bold',
   },
 });
-

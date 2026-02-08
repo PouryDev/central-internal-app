@@ -1,19 +1,27 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Card } from './Card';
 import { theme } from '../constants/theme';
-import { MenuItem } from '../data/mockData';
+import type { MenuItem } from '../types';
 
 interface MenuItemCardProps {
   item: MenuItem;
 }
 
+const CATEGORY_ICONS: Record<string, string> = {
+  'hot-drink': '☕',
+  'cold-drink': '🧃',
+  snack: '🍿',
+};
+
 export const MenuItemCard: React.FC<MenuItemCardProps> = ({ item }) => {
+  const icon = CATEGORY_ICONS[item.category] ?? '📷';
+
   return (
     <Card style={styles.card}>
       <View style={styles.content}>
         <View style={styles.imagePlaceholder}>
-          <Text style={styles.imageText}>📷</Text>
+          <Text style={styles.imageText}>{icon}</Text>
         </View>
         <View style={styles.info}>
           <Text style={styles.name}>{item.name}</Text>
@@ -37,16 +45,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   imagePlaceholder: {
-    width: 80,
-    height: 80,
-    backgroundColor: theme.colors.border,
+    width: 72,
+    height: 72,
+    backgroundColor: theme.colors.background,
     borderRadius: theme.borderRadius.md,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: theme.spacing.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   imageText: {
-    fontSize: 32,
+    fontSize: 28,
   },
   info: {
     flex: 1,
@@ -69,4 +79,3 @@ const styles = StyleSheet.create({
     fontFamily: 'Vazirmatn-Bold',
   },
 });
-

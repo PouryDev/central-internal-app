@@ -1,0 +1,3 @@
+# Exclude pnpm lockfile so EAS uses npm for install
+# Fixes Android build "Included build null does not exist" error with pnpm
+pnpm-lock.yaml
