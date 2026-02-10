@@ -1,117 +1,285 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  ListRenderItem,
+  TouchableOpacity,
+} from 'react-native';
 import { Card } from '../components/Card';
-import { FilterChips } from '../components/FilterChips';
+import { StatisticsFilterModal } from '../components/StatisticsFilterModal';
+import type { StatisticsFilters } from '../components/StatisticsFilterModal';
+import { StatisticsSessionCard } from '../components/StatisticsSessionCard';
+import { UserIcon, FilterIcon, ChartIcon, ClipboardIcon } from '../components/Icons';
 import { theme } from '../constants/theme';
+import { toPersianNumber } from '../utils/toPersian';
+import { getDateRangeForPreset } from '../utils/date';
 import { useData } from '../context/DataContext';
+import { useResponsive } from '../utils/responsive';
+import type { Session } from '../types';
+
+const SESSIONS_PAGE_SIZE = 15;
+
+function getDefaultFilters(): StatisticsFilters {
+  const { from, to } = getDateRangeForPreset('this_month');
+  return {
+    dateFrom: from,
+    dateTo: to,
+    facilitatorId: 'all',
+    hallId: 'all',
+    status: 'all',
+    guestType: 'non-guests',
+  };
+}
+
+function toPageFilters(f: StatisticsFilters) {
+  return {
+    status: f.status as 'all' | 'pending' | 'paid',
+    dateFrom: f.dateFrom,
+    dateTo: f.dateTo,
+    facilitatorId: f.facilitatorId,
+    hallId: f.hallId,
+    guestType: f.guestType as 'all' | 'guests' | 'non-guests',
+  };
+}
 
 export const StatisticsScreen: React.FC = () => {
-  const { facilitators, sessions, loading } = useData();
-  const [guestFilter, setGuestFilter] = useState<string>('all');
-  const [sessionFilters, setSessionFilters] = useState({
-    facilitator: 'all',
-    hall: 'all',
-    date: 'all',
-    status: 'all',
-  });
+  const { contentMaxWidth, isTablet } = useResponsive();
+  const {
+    facilitators,
+    halls,
+    loading,
+    getSessionsPage,
+    getSessionStats,
+  } = useData();
+  const [filters, setFilters] = useState<StatisticsFilters>(getDefaultFilters);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [total, setTotal] = useState(0);
+  const [stats, setStats] = useState<{
+    totalSessions: number;
+    totalPlayers: number;
+    facilitatorStats: { facilitator: { id: string; name: string }; count: number }[];
+  } | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [hasAnySessions, setHasAnySessions] = useState<boolean | null>(null);
 
-  const guestFilterChips = [
-    { id: 'all', label: 'همه' },
-    { id: 'guests', label: 'مهمان‌ها' },
-    { id: 'non-guests', label: 'غیرمهمان‌ها' },
-  ];
+  const pageFilters = useMemo(
+    () => toPageFilters(filters),
+    [
+      filters.dateFrom,
+      filters.dateTo,
+      filters.facilitatorId,
+      filters.hallId,
+      filters.status,
+      filters.guestType,
+    ]
+  );
 
-  const onGuestFilterChange = () => {};
-  const onSessionFilterChange = () => {};
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const s = await getSessionStats(pageFilters, facilitators);
+      setStats(s);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [getSessionStats, pageFilters, facilitators]);
+
+  const loadSessions = useCallback(
+    async (offset: number, append: boolean) => {
+      const result = await getSessionsPage(offset, SESSIONS_PAGE_SIZE, pageFilters);
+      if (append) {
+        setSessions((prev) => [...prev, ...result.sessions]);
+      } else {
+        setSessions(result.sessions);
+      }
+      setTotal(result.total);
+    },
+    [getSessionsPage, pageFilters]
+  );
+
+  useEffect(() => {
+    loadStats();
+    loadSessions(0, false);
+  }, [loadStats, loadSessions]);
+
+  useEffect(() => {
+    if (hasAnySessions === null && !loading) {
+      getSessionsPage(0, 1, {}).then((r) =>
+        setHasAnySessions(r.total > 0)
+      );
+    }
+  }, [hasAnySessions, loading, getSessionsPage]);
+
+  const hasMore = sessions.length < total;
+
+  const handleLoadMore = useCallback(() => {
+    if (!hasMore) return;
+    loadSessions(sessions.length, true);
+  }, [hasMore, sessions.length, loadSessions]);
+
+  const renderSessionItem: ListRenderItem<Session> = useCallback(
+    ({ item: session }) => <StatisticsSessionCard session={session} />,
+    []
+  );
+
+  const hasActiveFilters =
+    filters.dateFrom ||
+    filters.dateTo ||
+    filters.facilitatorId !== 'all' ||
+    filters.hallId !== 'all' ||
+    filters.status !== 'all' ||
+    filters.guestType !== 'all';
+
+  const renderListHeader = () => (
+    <>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <Text style={styles.pageTitle}>آمار</Text>
+          <TouchableOpacity
+            style={[styles.filterButton, hasActiveFilters && styles.filterButtonActive]}
+            onPress={() => setFilterModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <FilterIcon size={20} color={hasActiveFilters ? theme.colors.text : theme.colors.textSecondary} />
+            <Text
+              style={[
+                styles.filterButtonText,
+                hasActiveFilters && styles.filterButtonTextActive,
+              ]}
+            >
+              فیلتر
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.summaryRow}>
+        <Card style={styles.summaryCard}>
+          <Text style={styles.summaryNumber}>
+            {statsLoading ? '...' : toPersianNumber(stats?.totalSessions ?? 0)}
+          </Text>
+          <Text style={styles.summaryLabel}>سانس</Text>
+        </Card>
+        <Card style={styles.summaryCard}>
+          <Text style={styles.summaryNumber}>
+            {statsLoading ? '...' : toPersianNumber(stats?.totalPlayers ?? 0)}
+          </Text>
+          <Text style={styles.summaryLabel}>بازیکن</Text>
+        </Card>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>گرداننده‌ها</Text>
+        <View style={styles.statsList}>
+          {(stats?.facilitatorStats ?? []).map((stat) => (
+            <Card key={stat.facilitator.id} style={styles.statCard} elevated>
+              <View style={styles.statCardContent}>
+                <View style={styles.statAvatar}>
+                  <UserIcon size={24} color={theme.colors.text} />
+                </View>
+                <View style={styles.statInfo}>
+                  <Text style={styles.statLabel}>{stat.facilitator.name}</Text>
+                  <Text style={styles.statValue}>
+                    {toPersianNumber(stat.count)} نفر
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>سانس‌ها</Text>
+      </View>
+    </>
+  );
+
+  const renderListFooter = () =>
+    hasMore ? (
+      <View style={styles.loadMoreFooter}>
+        <ActivityIndicator size="small" color={theme.colors.primary} />
+      </View>
+    ) : null;
+
+  const renderListEmpty = () => (
+    <Card style={styles.sessionsEmptyCard}>
+      <View style={styles.sessionsEmptyIconWrap}>
+        <ClipboardIcon size={56} color={theme.colors.textSecondary} />
+      </View>
+      <Text style={styles.sessionsEmptyTitle}>هنوز سانسی ثبت نشده</Text>
+      <Text style={styles.sessionsEmptySubtitle}>
+        {hasActiveFilters
+          ? 'با این فیلترها سانسی یافت نشد. فیلترها را تغییر دهید یا سانس جدید ثبت کنید.'
+          : 'برای مشاهده آمار، ابتدا از صفحه اصلی یک سانس ثبت کنید.'}
+      </Text>
+    </Card>
+  );
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View
+        style={[
+          styles.container,
+          { justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
-  const getFacilitatorStats = () => {
-    return facilitators.map((facilitator) => {
-      const facilitatorSessions = sessions.filter(
-        (s) => s.facilitator.id === facilitator.id
-      );
-      let userCount = 0;
-      facilitatorSessions.forEach((session) => {
-        session.players.forEach((player) => {
-          if (guestFilter === 'all') {
-            userCount++;
-          } else if (guestFilter === 'guests' && player.isGuest) {
-            userCount++;
-          } else if (guestFilter === 'non-guests' && !player.isGuest) {
-            userCount++;
-          }
-        });
-      });
-      return { facilitator, count: userCount };
-    });
-  };
-
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>آمار گرداننده‌ها</Text>
-        <FilterChips
-          chips={guestFilterChips}
-          selectedId={guestFilter}
-          onSelect={(id) => {
-            setGuestFilter(id);
-            onGuestFilterChange();
-          }}
-        />
-        <View style={styles.statsList}>
-          {getFacilitatorStats().map((stat) => (
-            <Card key={stat.facilitator.id} style={styles.statCard}>
-              <Text style={styles.statLabel}>{stat.facilitator.name}</Text>
-              <Text style={styles.statValue}>
-                {stat.count} کاربر ثبت‌نام شده
-              </Text>
-            </Card>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>لیست سانس‌ها</Text>
-        <View style={styles.filtersNote}>
-          <Text style={styles.noteText}>
-            فیلترها: گرداننده، سالن، تاریخ، وضعیت
+  if (hasAnySessions === false) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIconWrap}>
+            <ChartIcon size={64} color={theme.colors.textSecondary} />
+          </View>
+          <Text style={styles.emptyTitle}>داده‌ای برای نمایش آمار وجود ندارد</Text>
+          <Text style={styles.emptySubtitle}>
+            ابتدا سانس ثبت کنید تا آمار و گزارش‌ها در این بخش نمایش داده شوند.
           </Text>
         </View>
-        <View style={styles.sessionsList}>
-          {sessions.map((session) => (
-            <Card key={session.id} style={styles.sessionCard}>
-              <View style={styles.sessionRow}>
-                <Text style={styles.sessionLabel}>گرداننده:</Text>
-                <Text style={styles.sessionValue}>
-                  {session.facilitator.name}
-                </Text>
-              </View>
-              <View style={styles.sessionRow}>
-                <Text style={styles.sessionLabel}>سالن:</Text>
-                <Text style={styles.sessionValue}>{session.hall}</Text>
-              </View>
-              <View style={styles.sessionRow}>
-                <Text style={styles.sessionLabel}>تاریخ:</Text>
-                <Text style={styles.sessionValue}>{session.date}</Text>
-              </View>
-              <View style={styles.sessionRow}>
-                <Text style={styles.sessionLabel}>وضعیت:</Text>
-                <Text style={styles.sessionValue}>
-                  {session.status === 'pending' ? 'ثبت نشده' : 'تسویه شده'}
-                </Text>
-              </View>
-            </Card>
-          ))}
-        </View>
       </View>
-    </ScrollView>
+    );
+  }
+
+  return (
+    <>
+      <FlatList
+        style={styles.container}
+        contentContainerStyle={[
+          styles.content,
+          isTablet && {
+            maxWidth: contentMaxWidth,
+            alignSelf: 'center' as const,
+            width: '100%',
+          },
+        ]}
+        data={sessions}
+        keyExtractor={(item) => item.id}
+        renderItem={renderSessionItem}
+        ListHeaderComponent={renderListHeader}
+        ListEmptyComponent={renderListEmpty}
+        ListFooterComponent={renderListFooter}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.3}
+      />
+
+      <StatisticsFilterModal
+        visible={filterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+        onApply={setFilters}
+        filters={filters}
+        facilitators={facilitators}
+        halls={halls}
+      />
+    </>
   );
 };
 
@@ -122,64 +290,153 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: theme.spacing.lg,
+    paddingBottom: 120,
+    flexGrow: 1,
+  },
+  header: {
+    marginBottom: theme.spacing.lg,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pageTitle: {
+    ...theme.typography.h2,
+    color: theme.colors.text,
+    fontFamily: 'Vazirmatn-Bold',
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  filterButtonActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary + '15',
+  },
+  filterButtonText: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Vazirmatn-Regular',
+    marginRight: theme.spacing.xs,
+  },
+  filterButtonTextActive: {
+    color: theme.colors.primary,
+    fontFamily: 'Vazirmatn-Bold',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.xl,
+  },
+  summaryCard: {
+    flex: 1,
+    padding: theme.spacing.lg,
+    alignItems: 'center',
+  },
+  summaryNumber: {
+    ...theme.typography.h2,
+    color: theme.colors.primary,
+    fontFamily: 'Vazirmatn-Bold',
+    marginBottom: theme.spacing.xs,
+  },
+  summaryLabel: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Vazirmatn-Regular',
   },
   section: {
     marginBottom: theme.spacing.xl,
   },
   sectionTitle: {
-    ...theme.typography.h2,
+    ...theme.typography.h3,
     color: theme.colors.text,
     fontFamily: 'Vazirmatn-Bold',
     marginBottom: theme.spacing.md,
   },
   statsList: {
-    marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
   statCard: {
-    marginBottom: theme.spacing.md,
+    padding: theme.spacing.md,
+  },
+  statCardContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  statAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
+  },
+  statInfo: {
+    flex: 1,
   },
   statLabel: {
     ...theme.typography.body,
     color: theme.colors.text,
-    fontFamily: 'Vazirmatn-Bold',
+    fontFamily: 'Vazirmatn-Regular',
   },
   statValue: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-    fontFamily: 'Vazirmatn-Regular',
-  },
-  filtersNote: {
-    marginBottom: theme.spacing.md,
-  },
-  noteText: {
     ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-    fontFamily: 'Vazirmatn-Regular',
+    color: theme.colors.primary,
+    fontFamily: 'Vazirmatn-Bold',
+    marginTop: 2,
   },
-  sessionsList: {
-    marginTop: theme.spacing.md,
+  loadMoreFooter: {
+    paddingVertical: theme.spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sessionCard: {
-    marginBottom: theme.spacing.md,
+  sessionsEmptyCard: {
+    padding: theme.spacing.xxl,
+    alignItems: 'center',
+    marginHorizontal: theme.spacing.lg,
   },
-  sessionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  sessionsEmptyIconWrap: {
+    marginBottom: theme.spacing.lg,
+  },
+  sessionsEmptyTitle: {
+    ...theme.typography.h3,
+    color: theme.colors.text,
+    fontFamily: 'Vazirmatn-Bold',
     marginBottom: theme.spacing.sm,
   },
-  sessionLabel: {
+  sessionsEmptySubtitle: {
     ...theme.typography.body,
     color: theme.colors.textSecondary,
     fontFamily: 'Vazirmatn-Regular',
+    textAlign: 'center',
   },
-  sessionValue: {
-    ...theme.typography.body,
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.xxl * 2,
+  },
+  emptyIconWrap: {
+    marginBottom: theme.spacing.lg,
+  },
+  emptyTitle: {
+    ...theme.typography.h2,
     color: theme.colors.text,
+    fontFamily: 'Vazirmatn-Bold',
+    marginBottom: theme.spacing.sm,
+  },
+  emptySubtitle: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
     fontFamily: 'Vazirmatn-Regular',
-    fontWeight: '600',
+    textAlign: 'center',
   },
 });
-

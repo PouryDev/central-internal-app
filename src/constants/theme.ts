@@ -27,31 +27,37 @@ export const theme = {
       fontSize: 32,
       fontWeight: 'bold' as const,
       lineHeight: 40,
+      fontFamily: 'Vazirmatn-Bold',
     },
     h2: {
       fontSize: 24,
       fontWeight: 'bold' as const,
       lineHeight: 32,
+      fontFamily: 'Vazirmatn-Bold',
     },
     h3: {
       fontSize: 20,
       fontWeight: '600' as const,
       lineHeight: 28,
+      fontFamily: 'Vazirmatn-Bold',
     },
     body: {
       fontSize: 16,
       fontWeight: '400' as const,
       lineHeight: 24,
+      fontFamily: 'Vazirmatn-Regular',
     },
     caption: {
       fontSize: 14,
       fontWeight: '400' as const,
       lineHeight: 20,
+      fontFamily: 'Vazirmatn-Regular',
     },
     small: {
       fontSize: 12,
       fontWeight: '400' as const,
       lineHeight: 18,
+      fontFamily: 'Vazirmatn-Regular',
     },
   },
   borderRadius: {
@@ -87,6 +93,10 @@ export const theme = {
   opacity: {
     disabled: 0.5,
     hover: 0.9,
+  },
+  inputOutline: {
+    outlineStyle: 'none',
+    outlineWidth: 0,
   },
   gradients: {
     primary: ['#D94B4B', '#E86A6A'] as const,

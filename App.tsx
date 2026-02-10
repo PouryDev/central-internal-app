@@ -1,6 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  StyleSheet,
+  ActivityIndicator,
+  Text,
+  Platform,
+  BackHandler,
+} from 'react-native';
 import { I18nManager } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Toasts, ToastPosition } from '@backpackapp-io/react-native-toast';
+import { Easing } from 'react-native-reanimated';
 import { loadFonts } from './src/utils/fonts';
 import { DataProvider, useData } from './src/context/DataContext';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -9,6 +20,7 @@ import { CashierPanelScreen } from './src/screens/CashierPanelScreen';
 import { SessionDetailsScreen } from './src/screens/SessionDetailsScreen';
 import { AdminPanelScreen } from './src/screens/AdminPanelScreen';
 import { theme } from './src/constants/theme';
+import { toast } from './src/utils/toast';
 import type { Session } from './src/types';
 
 type Screen =
@@ -29,6 +41,16 @@ function AppContent() {
     I18nManager.forceRTL(true);
     I18nManager.allowRTL(true);
 
+    // RTL for web
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.documentElement.dir = 'rtl';
+      document.documentElement.lang = 'fa';
+      // Remove outline from all inputs on focus
+      const style = document.createElement('style');
+      style.textContent = 'input, textarea:focus { outline: none !important; }';
+      document.head.appendChild(style);
+    }
+
     // Load fonts
     loadFonts()
       .then(() => setFontsLoaded(true))
@@ -37,6 +59,37 @@ function AppContent() {
         setFontsLoaded(true); // Continue even if fonts fail
       });
   }, []);
+
+  const handleBack = useCallback(() => {
+    setCurrentScreen('home');
+    setSelectedSessionId('');
+  }, []);
+
+  const handleBackFromSessionDetails = useCallback(() => {
+    setCurrentScreen('cashier-panel');
+    setSelectedSessionId('');
+  }, []);
+
+  // Android hardware back button: navigate back or prevent exit
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    const onBackPress = () => {
+      if (currentScreen === 'session-details') {
+        handleBackFromSessionDetails();
+        return true;
+      }
+      if (currentScreen !== 'home') {
+        handleBack();
+        return true; // Handled - don't exit app
+      }
+      // On home screen: prevent exit
+      return true;
+    };
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => sub.remove();
+  }, [currentScreen, handleBack, handleBackFromSessionDetails]);
 
   const handleNavigateToSessionCreate = () => {
     setCurrentScreen('session-create');
@@ -50,11 +103,6 @@ function AppContent() {
     setCurrentScreen('admin-panel');
   };
 
-  const handleBack = () => {
-    setCurrentScreen('home');
-    setSelectedSessionId('');
-  };
-
   const handleSessionPress = (sessionId: string) => {
     setSelectedSessionId(sessionId);
     setCurrentScreen('session-details');
@@ -62,12 +110,14 @@ function AppContent() {
 
   const handleSubmitSession = async (session: Session) => {
     await addSession(session);
+    toast.success('سانس با موفقیت ثبت شد.');
     handleBack();
   };
 
   const handleMarkAsPaid = async () => {
     await updateSessionStatus(selectedSessionId, 'paid');
-    handleBack();
+    toast.success('تسویه با موفقیت انجام شد.');
+    handleBackFromSessionDetails();
   };
 
   if (!fontsLoaded) {
@@ -103,7 +153,7 @@ function AppContent() {
       {currentScreen === 'session-details' && (
         <SessionDetailsScreen
           sessionId={selectedSessionId}
-          onBack={handleBack}
+          onBack={handleBackFromSessionDetails}
           onMarkAsPaid={handleMarkAsPaid}
         />
       )}
@@ -114,11 +164,52 @@ function AppContent() {
   );
 }
 
+const toastStyle = {
+  pressable: {
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadows.md,
+  },
+  view: {
+    flexDirection: 'row' as const,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+  },
+  text: {
+    fontFamily: 'Vazirmatn-Regular',
+    color: theme.colors.text,
+    ...theme.typography.body,
+  },
+  indicator: {
+    backgroundColor: theme.colors.success,
+  },
+};
+
+function ToastPortal() {
+  return (
+    <Toasts
+      overrideDarkMode={true}
+      defaultPosition={ToastPosition.TOP}
+      defaultDuration={3500}
+      globalAnimationType="spring"
+      globalAnimationConfig={{ duration: 280, easing: Easing.out(Easing.cubic) }}
+      defaultStyle={toastStyle}
+    />
+  );
+}
+
 export default function App() {
   return (
-    <DataProvider>
-      <AppContent />
-    </DataProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <DataProvider>
+          <AppContent />
+          <ToastPortal />
+        </DataProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -126,6 +217,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+    writingDirection: 'rtl',
   },
   loadingContainer: {
     flex: 1,

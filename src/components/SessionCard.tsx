@@ -2,7 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card } from './Card';
 import { StatusBadge } from './StatusBadge';
+import { ClockIcon } from './Icons';
 import { theme } from '../constants/theme';
+import { toPersianNumber } from '../utils/toPersian';
+import { formatDateForDisplay } from '../utils/date';
 import type { Session } from '../types';
 
 interface SessionCardProps {
@@ -10,43 +13,33 @@ interface SessionCardProps {
   onPress: () => void;
 }
 
-const INFO_ICONS = {
-  facilitator: '👤',
-  hall: '🏛',
-  time: '🕐',
-  players: '👥',
-};
+const SessionCardComponent: React.FC<SessionCardProps> = ({ session, onPress }) => {
+  const persianId = toPersianNumber(session.id);
+  const persianDate = toPersianNumber(formatDateForDisplay(session.date));
+  const persianTime = toPersianNumber(session.time);
+  const userCount = session.players.filter((p) => !p.isGuest).length;
+  const guestCount = session.players.filter((p) => p.isGuest).length;
+  const persianUser = toPersianNumber(userCount);
+  const persianGuest = toPersianNumber(guestCount);
 
-export const SessionCard: React.FC<SessionCardProps> = ({ session, onPress }) => {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
       <Card style={styles.card}>
-        <View style={styles.header}>
-          <Text style={styles.title}>سانس {session.id}</Text>
-          <StatusBadge status={session.status} />
-        </View>
-        <View style={styles.infoGrid}>
-          <View style={styles.infoRow}>
-            <Text style={styles.icon}>{INFO_ICONS.facilitator}</Text>
-            <Text style={styles.label}>گرداننده</Text>
-            <Text style={styles.value}>{session.facilitator.name}</Text>
+        <View style={styles.row}>
+          <View style={styles.avatar}>
+            <ClockIcon size={20} color={theme.colors.text} />
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.icon}>{INFO_ICONS.hall}</Text>
-            <Text style={styles.label}>سالن</Text>
-            <Text style={styles.value}>{session.hall}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.icon}>{INFO_ICONS.time}</Text>
-            <Text style={styles.label}>زمان</Text>
-            <Text style={styles.value}>
-              {session.date} • {session.time}
+          <View style={styles.info}>
+            <View style={styles.header}>
+              <Text style={styles.title}>سانس {persianId}</Text>
+              <StatusBadge status={session.status} />
+            </View>
+            <Text style={styles.subtitle}>
+              {session.facilitator.name} • {session.hall}
             </Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.icon}>{INFO_ICONS.players}</Text>
-            <Text style={styles.label}>بازیکن</Text>
-            <Text style={styles.value}>{session.players.length} نفر</Text>
+            <Text style={styles.meta}>
+              یوزر: {persianUser} • مهمان: {persianGuest} • {persianDate} {persianTime}
+            </Text>
           </View>
         </View>
       </Card>
@@ -58,44 +51,44 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: theme.spacing.md,
   },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: theme.spacing.md,
+  },
+  info: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    marginBottom: theme.spacing.xs,
   },
   title: {
     ...theme.typography.h3,
     color: theme.colors.text,
     fontFamily: 'Vazirmatn-Bold',
   },
-  infoGrid: {
-    gap: theme.spacing.sm,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  icon: {
-    fontSize: 14,
-    width: 24,
-    textAlign: 'center',
-    marginLeft: theme.spacing.xs,
-  },
-  label: {
+  subtitle: {
     ...theme.typography.caption,
     color: theme.colors.textSecondary,
     fontFamily: 'Vazirmatn-Regular',
-    width: 70,
+    marginBottom: 2,
   },
-  value: {
-    ...theme.typography.body,
-    color: theme.colors.text,
+  meta: {
+    ...theme.typography.small,
+    color: theme.colors.textSecondary,
     fontFamily: 'Vazirmatn-Regular',
-    fontWeight: '600',
-    flex: 1,
   },
 });
+
+export const SessionCard = React.memo(SessionCardComponent);

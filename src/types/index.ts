@@ -3,11 +3,17 @@ export interface Facilitator {
   name: string;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  icon?: string;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
   price: number;
-  category: 'hot-drink' | 'cold-drink' | 'snack';
+  category: string;
   description?: string;
 }
 

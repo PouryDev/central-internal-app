@@ -11,15 +11,17 @@ interface FilterChipsProps {
   chips: FilterChip[];
   selectedId?: string;
   onSelect: (chipId: string) => void;
+  compact?: boolean;
 }
 
 export const FilterChips: React.FC<FilterChipsProps> = ({
   chips,
   selectedId,
   onSelect,
+  compact = false,
 }) => {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compact && styles.containerCompact]}>
       {chips.map((chip) => {
         const isSelected = chip.id === selectedId;
         return (
@@ -27,6 +29,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
             key={chip.id}
             style={[
               styles.chip,
+              compact && styles.chipCompact,
               isSelected && styles.selectedChip,
             ]}
             onPress={() => onSelect(chip.id)}
@@ -54,20 +57,28 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
     gap: theme.spacing.sm,
   },
+  containerCompact: {
+    marginBottom: theme.spacing.xs,
+    gap: theme.spacing.xs,
+  },
   chip: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm + 2,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs + 2,
     borderRadius: theme.borderRadius.full,
     backgroundColor: theme.colors.card,
     borderWidth: 1,
     borderColor: theme.colors.border,
+  },
+  chipCompact: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
   },
   selectedChip: {
     backgroundColor: theme.colors.primary,
     borderColor: theme.colors.primary,
   },
   chipText: {
-    ...theme.typography.caption,
+    ...theme.typography.small,
     color: theme.colors.textSecondary,
     fontFamily: 'Vazirmatn-Regular',
   },

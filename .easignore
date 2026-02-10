@@ -1,3 +1,26 @@
 # Exclude pnpm lockfile so EAS uses npm for install
 # Fixes Android build "Included build null does not exist" error with pnpm
 pnpm-lock.yaml
+
+# Git & version control
+.git/
+.github/
+
+# Package manager cache (pnpm store - huge)
+.pnpm-store/
+
+# IDE & editor
+.vscode/
+.idea/
+.cursor/
+
+# Unused font formats (app only needs .ttf for native)
+assets/fonts/**/*.eot
+assets/fonts/**/*.woff
+assets/fonts/**/*.woff2
+assets/fonts/Farsi-Digits-Without-Latin/
+
+# Font docs (not needed for build)
+assets/fonts/CHANGELOG.md
+assets/fonts/README.md
+assets/fonts/LICENSE

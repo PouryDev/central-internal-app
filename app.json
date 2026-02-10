@@ -1,36 +1,57 @@
-  {
-    "expo": {
-      "name": "Mafia Cafe Management",
-      "slug": "mafia-cafe-management",
-      "version": "1.0.0",
-      "orientation": "portrait",
-      "icon": "./assets/icon.png",
-      "userInterfaceStyle": "dark",
-      "splash": {
-        "image": "./assets/splash.png",
-        "resizeMode": "contain",
+{
+  "expo": {
+    "name": "Don Club Central",
+    "slug": "mafia-cafe-management",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D0D0F"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Vazir.ttf",
+            "./assets/fonts/Vazir-Bold.ttf"
+          ]
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0"
+          }
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D0D0F"
       },
-      "assetBundlePatterns": [
-        "**/*"
-      ],
-      "ios": {
-        "supportsTablet": true
-      },
-      "android": {
-        "adaptiveIcon": {
-          "foregroundImage": "./assets/adaptive-icon.png",
-          "backgroundColor": "#0D0D0F"
-        },
-        "package": "com.pourydev.mafiacafemanagement"
-      },
-      "web": {
-        "favicon": "./assets/favicon.png"
-      },
-      "extra": {
-        "eas": {
-          "projectId": "ead59571-ee63-4051-b4d8-d5583e7fc6c0"
-        }
+      "package": "com.pourydev.mafiacafemanagement"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5eb70f3b-91d5-41a7-a4ba-6487096a9c60"
       }
     }
   }
+}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import { TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { theme } from '../constants/theme';
 
 interface ToggleSwitchProps {
@@ -21,7 +21,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
     }).start();
   }, [value, animatedValue]);
 
-  const translateX = animatedValue.interpolate({
+  const left = animatedValue.interpolate({
     inputRange: [0, 1],
     outputRange: [2, 22],
   });
@@ -49,7 +49,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
           style={[
             styles.thumb,
             {
-              transform: [{ translateX }],
+              left,
             },
           ]}
         />
@@ -62,12 +62,14 @@ const styles = StyleSheet.create({
   container: {
     justifyContent: 'center',
     alignItems: 'center',
+    direction: 'ltr',
   },
   track: {
     width: 44,
     height: 24,
     borderRadius: 12,
     justifyContent: 'center',
+    direction: 'ltr',
   },
   thumb: {
     width: 20,
@@ -75,6 +77,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: theme.colors.text,
     position: 'absolute',
+    top: 2,
   },
 });
 

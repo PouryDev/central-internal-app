@@ -1,69 +1,245 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
+  Platform,
+  KeyboardAvoidingView,
+  ActivityIndicator,
+  ListRenderItem,
+  useWindowDimensions,
 } from 'react-native';
+import { toast } from '../utils/toast';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { FAB } from '../components/FAB';
+import { UserIcon } from '../components/Icons';
 import { theme } from '../constants/theme';
 import { useData } from '../context/DataContext';
+import { useResponsive } from '../utils/responsive';
+import type { Facilitator } from '../types';
+
+const MODAL_MAX_WIDTH = 480;
+
+const PAGE_SIZE = 15;
 
 export const FacilitatorsScreen: React.FC = () => {
-  const { facilitators, addFacilitator } = useData();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [name, setName] = useState('');
+  const { width } = useWindowDimensions();
+  const { isTablet, numColumns } = useResponsive();
+  const sheetWidth = isTablet ? Math.min(width * 0.9, MODAL_MAX_WIDTH) : width;
 
-  const onAddFacilitator = () => {
+  const { facilitators, sessions, addFacilitator, updateFacilitator, deleteFacilitator } = useData();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const openAddModal = () => {
+    setEditingId(null);
+    setName('');
     setModalVisible(true);
+  };
+
+  const openEditModal = (f: Facilitator) => {
+    setEditingId(f.id);
+    setName(f.name);
+    setModalVisible(true);
+  };
+
+  const isFacilitatorInUse = (facilitatorId: string) => {
+    return (sessions ?? []).some((s) => s.facilitator.id === facilitatorId);
   };
 
   const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      Alert.alert('خطا', 'نام گرداننده را وارد کنید.');
+      toast.error('نام گرداننده را وارد کنید.');
       return;
     }
-    await addFacilitator({
-      id: Date.now().toString(),
-      name: trimmed,
-    });
-    setName('');
-    setModalVisible(false);
+    setSaving(true);
+    try {
+      if (editingId) {
+        await updateFacilitator(editingId, { name: trimmed });
+        toast.success('گرداننده با موفقیت ویرایش شد.');
+      } else {
+        await addFacilitator({
+          id: Date.now().toString(),
+          name: trimmed,
+        });
+        toast.success('گرداننده با موفقیت اضافه شد.');
+      }
+      setName('');
+      setModalVisible(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Button
-          title="+ افزودن گرداننده"
-          onPress={onAddFacilitator}
-          style={styles.addButton}
-        />
-      </View>
+  const handleDelete = async (f: Facilitator) => {
+    if (isFacilitatorInUse(f.id)) {
+      toast.error('این گرداننده در سانس‌ها استفاده شده و قابل حذف نیست.');
+      return;
+    }
+    setDeletingId(f.id);
+    try {
+      await deleteFacilitator(f.id);
+      toast.success('گرداننده حذف شد.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
-      <View style={styles.list}>
-        {facilitators.map((facilitator) => (
-          <Card key={facilitator.id} style={styles.facilitatorCard}>
-            <Text style={styles.facilitatorName}>{facilitator.name}</Text>
+  const displayedFacilitators = facilitators.slice(0, visibleCount);
+  const hasMore = visibleCount < facilitators.length;
+
+  const handleLoadMore = useCallback(() => {
+    if (hasMore) {
+      setVisibleCount((prev) =>
+        Math.min(prev + PAGE_SIZE, facilitators.length)
+      );
+    }
+  }, [hasMore, facilitators.length]);
+
+  const renderItem: ListRenderItem<Facilitator> = useCallback(
+    ({ item: facilitator }) => {
+      const inUse = isFacilitatorInUse(facilitator.id);
+      return (
+        <View style={numColumns > 1 ? styles.gridItem : undefined}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => openEditModal(facilitator)}
+        >
+          <Card style={styles.listItem}>
+            <View style={styles.listItemContent}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {facilitator.name.charAt(0)}
+                </Text>
+              </View>
+              <View style={styles.listItemInfo}>
+                <Text style={styles.listItemTitle}>{facilitator.name}</Text>
+                {inUse && <Text style={styles.listItemBadge}></Text>}
+              </View>
+              <View style={styles.listItemActions}>
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    openEditModal(facilitator);
+                  }}
+                >
+                  <Text style={styles.actionBtnText}>ویرایش</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnDanger]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleDelete(facilitator);
+                  }}
+                  disabled={deletingId === facilitator.id || inUse}
+                >
+                  {deletingId === facilitator.id ? (
+                    <ActivityIndicator size="small" color={theme.colors.error} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.actionBtnText,
+                        styles.actionBtnDangerText,
+                        inUse && styles.actionBtnDisabled,
+                      ]}
+                    >
+                      حذف
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
           </Card>
-        ))}
+        </TouchableOpacity>
+        </View>
+      );
+    },
+    [deletingId, numColumns],
+  );
+
+  const renderListEmpty = useCallback(
+    () => (
+      <View style={styles.emptyState}>
+        <View style={styles.emptyIconWrap}>
+          <UserIcon size={64} color={theme.colors.textSecondary} />
+        </View>
+        <Text style={styles.emptyTitle}>گرداننده‌ای ثبت نشده</Text>
+        <Text style={styles.emptySubtitle}>
+          با زدن دکمه + اولین گرداننده را اضافه کنید
+        </Text>
       </View>
+    ),
+    []
+  );
+
+  const renderListFooter = useCallback(
+    () =>
+      hasMore ? (
+        <View style={styles.loadMoreFooter}>
+          <ActivityIndicator size="small" color={theme.colors.primary} />
+        </View>
+      ) : null,
+    [hasMore]
+  );
+
+  return (
+    <View style={styles.wrapper}>
+      <FlatList
+        style={styles.container}
+        contentContainerStyle={[
+          styles.content,
+          facilitators.length === 0 && styles.contentEmpty,
+        ]}
+        data={displayedFacilitators}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        ListEmptyComponent={renderListEmpty}
+        ListFooterComponent={facilitators.length > 0 ? renderListFooter : null}
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.3}
+        numColumns={numColumns}
+        columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : undefined}
+      />
+
+      <FAB onPress={openAddModal} />
 
       <Modal
         visible={modalVisible}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>افزودن گرداننده</Text>
+        <KeyboardAvoidingView
+          style={[styles.modalOverlay, isTablet && styles.modalOverlayTablet]}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setModalVisible(false)}
+          />
+          <View
+            style={[
+              styles.modalSheet,
+              { width: sheetWidth },
+              isTablet && styles.modalSheetTablet,
+            ]}
+          >
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>
+              {editingId ? 'ویرایش گرداننده' : 'افزودن گرداننده'}
+            </Text>
             <TextInput
               style={styles.input}
               value={name}
@@ -79,54 +255,159 @@ export const FacilitatorsScreen: React.FC = () => {
                   setName('');
                   setModalVisible(false);
                 }}
-                style={styles.cancelButton}
+                variant="secondary"
               />
-              <Button title="ذخیره" onPress={handleSave} />
+              <Button title="ذخیره" onPress={handleSave} loading={saving} style={styles.saveButton} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  container: {
+    flex: 1,
+  },
   content: {
     padding: theme.spacing.lg,
+    paddingBottom: 120,
   },
-  header: {
+  contentEmpty: {
+    flexGrow: 1,
+  },
+  columnWrapper: {
+    gap: theme.spacing.md,
     marginBottom: theme.spacing.md,
   },
-  addButton: {
-    width: '100%',
+  gridItem: {
+    flex: 1,
+  },
+  loadMoreFooter: {
+    paddingVertical: theme.spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xxl * 2,
+  },
+  emptyIconWrap: {
+    marginBottom: theme.spacing.lg,
+  },
+  emptyTitle: {
+    ...theme.typography.h2,
+    color: theme.colors.text,
+    fontFamily: 'Vazirmatn-Bold',
+    marginBottom: theme.spacing.sm,
+  },
+  emptySubtitle: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Vazirmatn-Regular',
+    textAlign: 'center',
   },
   list: {
-    gap: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
-  facilitatorCard: {
-    padding: theme.spacing.lg,
+  listItem: {
+    padding: theme.spacing.md,
+    minHeight: 56,
+    marginBottom: theme.spacing.sm,
   },
-  facilitatorName: {
+  listItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: theme.spacing.md,
+  },
+  avatarText: {
+    fontSize: 18,
+    color: theme.colors.text,
+    fontFamily: 'Vazirmatn-Bold',
+  },
+  listItemInfo: {
+    flex: 1,
+  },
+  listItemTitle: {
     ...theme.typography.h3,
     color: theme.colors.text,
     fontFamily: 'Vazirmatn-Bold',
   },
+  listItemBadge: {
+    ...theme.typography.small,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Vazirmatn-Regular',
+    marginTop: 2,
+  },
+  listItemActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+  },
+  actionBtn: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.background,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  actionBtnDanger: {
+    borderColor: theme.colors.error,
+  },
+  actionBtnText: {
+    ...theme.typography.caption,
+    color: theme.colors.primary,
+    fontFamily: 'Vazirmatn-Bold',
+  },
+  actionBtnDangerText: {
+    color: theme.colors.error,
+  },
+  actionBtnDisabled: {
+    color: theme.colors.textSecondary,
+    opacity: 0.6,
+  },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalOverlayTablet: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalContent: {
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalSheet: {
     backgroundColor: theme.colors.card,
-    borderRadius: theme.borderRadius.lg,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
     padding: theme.spacing.xl,
-    width: '85%',
-    maxWidth: 400,
+    paddingBottom: theme.spacing.xxl + 24,
+  },
+  modalSheetTablet: {
+    borderRadius: theme.borderRadius.xl,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: theme.colors.border,
+    alignSelf: 'center',
+    marginBottom: theme.spacing.lg,
   },
   modalTitle: {
     ...theme.typography.h2,
@@ -144,14 +425,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     marginBottom: theme.spacing.lg,
+    ...theme.inputOutline,
   },
   modalButtons: {
     flexDirection: 'row',
     gap: theme.spacing.md,
   },
-  cancelButton: {
+  saveButton: {
     flex: 1,
-    backgroundColor: theme.colors.textSecondary,
   },
 });
-

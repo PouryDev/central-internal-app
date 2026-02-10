@@ -28,7 +28,9 @@ export const Dropdown: React.FC<DropdownProps> = ({
   placeholder = 'انتخاب کنید',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const selectedOption = options.find((opt) => opt.id === selectedId);
+  const selectedOption = options.find(
+    (opt) => String(opt.id) === String(selectedId)
+  );
 
   return (
     <View>
@@ -63,11 +65,14 @@ export const Dropdown: React.FC<DropdownProps> = ({
             <FlatList
               data={options}
               keyExtractor={(item) => item.id}
+              initialNumToRender={12}
+              windowSize={5}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
                     styles.option,
-                    selectedId === item.id && styles.selectedOption,
+                    String(selectedId) === String(item.id) &&
+                      styles.selectedOption,
                   ]}
                   onPress={() => {
                     onSelect(item);
@@ -76,9 +81,10 @@ export const Dropdown: React.FC<DropdownProps> = ({
                   activeOpacity={0.7}
                 >
                   <Text
-                    style={[
+                    style={                    [
                       styles.optionText,
-                      selectedId === item.id && styles.selectedOptionText,
+                      String(selectedId) === String(item.id) &&
+                        styles.selectedOptionText,
                     ]}
                   >
                     {item.label}
