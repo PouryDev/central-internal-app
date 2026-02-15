@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   ListRenderItem,
   I18nManager,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,38 +25,69 @@ import { theme } from '../constants/theme';
 import { UsersIcon, ClipboardIcon, ChevronIcon } from '../components/Icons';
 import { useData } from '../context/DataContext';
 import { useResponsive } from '../utils/responsive';
-import { getTodayJalali } from '../utils/date';
+import { normalizeSession } from '../utils/sessionNormalize';
 import type { Player, Session } from '../types';
 
 const PLAYERS_PAGE_SIZE = 15;
 
-interface SessionCreateScreenProps {
+interface SessionEditScreenProps {
+  sessionId: string;
   onBack: () => void;
-  onSubmitSession: (session: Session) => void | Promise<void>;
+  onSaved: () => void;
 }
 
-export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
+export const SessionEditScreen: React.FC<SessionEditScreenProps> = ({
+  sessionId,
   onBack,
-  onSubmitSession,
+  onSaved,
 }) => {
   const { isTablet } = useResponsive();
-  const { facilitators, halls, menuItems, categories, getMaxSessionNumericId } = useData();
+  const {
+    facilitators,
+    halls,
+    menuItems,
+    categories,
+    getSessionById,
+    updateSession,
+  } = useData();
 
-  const getNextSessionId = async (): Promise<string> => {
-    const max = await getMaxSessionNumericId();
-    return String(max + 1);
-  };
-  const [step, setStep] = useState<1 | 2>(1);
-  const [selectedFacilitator, setSelectedFacilitator] = useState<string>();
-  const [selectedHall, setSelectedHall] = useState<string>();
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedFacilitator, setSelectedFacilitator] = useState<string>('');
+  const [selectedHall, setSelectedHall] = useState<string>('');
   const [sessionShift, setSessionShift] = useState<'day' | 'night'>('night');
+  const [date, setDate] = useState('');
   const [time, setTime] = useState('20:00');
   const timeRef = useRef('20:00');
-  const [submitting, setSubmitting] = useState(false);
   const [players, setPlayers] = useState<Player[]>([]);
   const [playerModalVisible, setPlayerModalVisible] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [visibleCount, setVisibleCount] = useState(PLAYERS_PAGE_SIZE);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    getSessionById(sessionId).then((s) => {
+      if (cancelled) return;
+      const normalized = s ? normalizeSession(s) : null;
+      setSession(normalized);
+      if (normalized) {
+        setSelectedFacilitator(normalized.facilitator.id);
+        const hall = halls.find((h) => h.name === normalized.hall);
+        setSelectedHall(hall?.id ?? '');
+        setSessionShift(normalized.shift ?? 'night');
+        setDate(normalized.date);
+        setTime(normalized.time);
+        timeRef.current = normalized.time;
+        setPlayers([...normalized.players]);
+      }
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, getSessionById, halls.length]);
 
   const handleAddPlayer = () => {
     setEditingPlayer(null);
@@ -69,11 +101,11 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
 
   const handleSavePlayer = (player: Player) => {
     if (editingPlayer) {
-      setPlayers(
-        players.map((p) => (p.id === player.id ? player : p))
+      setPlayers((prev) =>
+        prev.map((p) => (p.id === player.id ? player : p))
       );
     } else {
-      setPlayers([...players, player]);
+      setPlayers((prev) => [...prev, player]);
       setVisibleCount((prev) => Math.max(prev, players.length + 1));
     }
     setEditingPlayer(null);
@@ -85,32 +117,23 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
     toast.success('بازیکن حذف شد.');
   }, []);
 
-  const handleUpdatePlayerGuest = useCallback(
-    (id: string, isGuest: boolean) => {
-      setPlayers((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, isGuest } : p))
-      );
-    },
-    []
-  );
+  const handleUpdatePlayerGuest = useCallback((id: string, isGuest: boolean) => {
+    setPlayers((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, isGuest } : p))
+    );
+  }, []);
 
-  const goToStep2 = () => {
-    if (!selectedFacilitator || !selectedHall) {
+  const handleSave = useCallback(async () => {
+    if (!session) return;
+    const facilitator = facilitators.find((f) => f.id === selectedFacilitator);
+    const hall = halls.find((h) => h.id === selectedHall);
+    if (!facilitator || !hall) {
       toast.error('لطفاً گرداننده و سالن را انتخاب کنید.');
       return;
     }
-    setStep(2);
-  };
-
-  const handleSubmit = async () => {
-    const facilitator = facilitators.find(
-      (f) => String(f.id) === String(selectedFacilitator)
-    );
-    const hall = halls.find(
-      (h) => String(h.id) === String(selectedHall)
-    );
-    if (!facilitator || !hall) {
-      toast.error('لطفاً گرداننده و سالن را انتخاب کنید.');
+    const trimmedDate = date.trim();
+    if (!trimmedDate) {
+      toast.error('لطفاً تاریخ را وارد کنید.');
       return;
     }
     const validPlayers = players.filter((p) => p.name.trim());
@@ -118,24 +141,36 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
       toast.error('حداقل یک بازیکن با نام وارد کنید.');
       return;
     }
-    const currentTime = timeRef.current || time;
     setSubmitting(true);
     try {
-      const session: Session = {
-        id: await getNextSessionId(),
+      const updated: Session = {
+        ...session,
         facilitator,
         hall: hall.name,
-        time: currentTime,
-        date: getTodayJalali(),
+        time: timeRef.current || time,
+        date: trimmedDate,
         players: validPlayers,
-        status: 'pending',
         shift: sessionShift,
       };
-      await onSubmitSession(session);
+      await updateSession(updated);
+      toast.success('سانس با موفقیت ویرایش شد.');
+      onSaved();
     } finally {
       setSubmitting(false);
     }
-  };
+  }, [
+    session,
+    facilitators,
+    halls,
+    selectedFacilitator,
+    selectedHall,
+    sessionShift,
+    date,
+    time,
+    players,
+    updateSession,
+    onSaved,
+  ]);
 
   const displayedPlayers = players.slice(0, visibleCount);
   const hasMore = visibleCount < players.length;
@@ -152,10 +187,8 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
     ({ item: player }) => (
       <PlayerCard
         player={player}
-        showToggle={true}
-        onGuestToggle={(isGuest) =>
-          handleUpdatePlayerGuest(player.id, isGuest)
-        }
+        showToggle
+        onGuestToggle={(isGuest) => handleUpdatePlayerGuest(player.id, isGuest)}
         onEdit={() => handleEditPlayer(player)}
         onDelete={() => handleDeletePlayer(player.id)}
       />
@@ -163,111 +196,15 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
     [handleUpdatePlayerGuest, handleEditPlayer, handleDeletePlayer]
   );
 
-  /** Step 1: session info form (outside FlatList so time input is not remounted — fixes Android keyboard). */
-  const step1Form = (
-    <View style={styles.formSection}>
-      <Card style={styles.formCard}>
-        <View style={[styles.formRowsContainer, isTablet && styles.formRowsTablet]}>
-          <View style={[styles.formRow, isTablet && styles.formRowTablet]}>
-            <Text style={styles.label}>گرداننده</Text>
-            <Dropdown
-              options={facilitators.map((f) => ({
-                id: f.id,
-                label: f.name,
-              }))}
-              selectedId={selectedFacilitator}
-              onSelect={(opt) => setSelectedFacilitator(opt.id)}
-              placeholder="انتخاب گرداننده"
-            />
-          </View>
-
-          <View style={[styles.formRow, isTablet && styles.formRowTablet]}>
-            <Text style={styles.label}>سالن</Text>
-            <Dropdown
-              options={halls.map((h) => ({
-                id: h.id,
-                label: h.name,
-              }))}
-              selectedId={selectedHall}
-              onSelect={(opt) => setSelectedHall(opt.id)}
-              placeholder="انتخاب سالن"
-            />
-          </View>
-
-          <View style={[styles.formRow, isTablet && styles.formRowTablet]}>
-            <Text style={styles.label}>نوع سانس</Text>
-            <View style={styles.shiftRow}>
-              <TouchableOpacity
-                style={[
-                  styles.shiftButton,
-                  sessionShift === 'day' && styles.shiftButtonSelected,
-                ]}
-                onPress={() => setSessionShift('day')}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.shiftButtonText,
-                    sessionShift === 'day' && styles.shiftButtonTextSelected,
-                  ]}
-                >
-                  سانس روز
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.shiftButton,
-                  sessionShift === 'night' && styles.shiftButtonSelected,
-                ]}
-                onPress={() => setSessionShift('night')}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.shiftButtonText,
-                    sessionShift === 'night' && styles.shiftButtonTextSelected,
-                  ]}
-                >
-                  سانس شب
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={[styles.formRow, isTablet && styles.formRowTablet]}>
-            <Text style={styles.label}>زمان</Text>
-            <DebouncedTimeInput
-              value={time}
-              onChangeText={setTime}
-              onValueRef={(t) => {
-                timeRef.current = t;
-              }}
-              placeholder="۲۰:۰۰"
-              style={styles.timeInput}
-            />
-          </View>
-        </View>
-      </Card>
-      <Button
-        title="ادامه"
-        onPress={goToStep2}
-        style={styles.continueButton}
-      />
-    </View>
-  );
-
-  const facilitatorName = facilitators.find((f) => f.id === selectedFacilitator)?.name ?? '';
-  const hallName = halls.find((h) => h.id === selectedHall)?.name ?? '';
-
   const renderListEmpty = useCallback(
     () => (
       <View style={styles.emptyState}>
         <View style={styles.emptyIconWrap}>
           <UsersIcon size={64} color={theme.colors.textSecondary} />
         </View>
-        <Text style={styles.emptyTitle}>هنوز بازیکنی اضافه نکرده‌اید</Text>
+        <Text style={styles.emptyTitle}>هنوز بازیکنی ندارید</Text>
         <Text style={styles.emptySubtitle}>
-          برای شروع روی افزودن بازیکن بزنید.
+          برای افزودن بازیکن روی دکمه زیر بزنید.
         </Text>
       </View>
     ),
@@ -283,73 +220,31 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
           </View>
         ) : null}
         <Button
-          title="ثبت سانس"
-          onPress={handleSubmit}
+          title="ذخیره تغییرات"
+          onPress={handleSave}
           style={styles.submitButton}
           loading={submitting}
         />
       </>
     ),
-    [hasMore, submitting, handleSubmit]
+    [hasMore, submitting, handleSave]
   );
 
-  /** Step 2: summary of session info + players list. */
-  const step2Content = (
-    <View style={styles.listWrapper}>
-      <View style={styles.formSection}>
-        <TouchableOpacity
-          style={styles.summaryCard}
-          onPress={() => setStep(1)}
-          activeOpacity={0.8}
-        >
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>گرداننده</Text>
-            <Text style={styles.summaryValue}>{facilitatorName}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>سالن</Text>
-            <Text style={styles.summaryValue}>{hallName}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>نوع سانس</Text>
-            <Text style={styles.summaryValue}>
-              {sessionShift === 'day' ? 'سانس روز' : 'سانس شب'}
-            </Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>زمان</Text>
-            <Text style={styles.summaryValue}>{timeRef.current || time}</Text>
-          </View>
-          <Text style={styles.summaryEditHint}>برای تغییر لمس کنید</Text>
-        </TouchableOpacity>
-
-        <View style={styles.playersSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>بازیکنان</Text>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={handleAddPlayer}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.addButtonText}>+ افزودن بازیکن</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
-      <FlatList
-        style={styles.list}
-        contentContainerStyle={styles.content}
-        data={displayedPlayers}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        ListEmptyComponent={renderListEmpty}
-        ListFooterComponent={renderListFooter}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.3}
-        keyboardShouldPersistTaps="handled"
-      />
-    </View>
-  );
+    );
+  }
+
+  if (!session) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>سانس یافت نشد</Text>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -363,15 +258,13 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
               <ClipboardIcon size={24} color={theme.colors.primary} />
             </View>
             <View style={styles.headerTextWrap}>
-              <Text style={styles.title}>ثبت سانس</Text>
-              <Text style={styles.subtitle}>
-                {step === 1 ? 'مرحله ۱ از ۲ — اطلاعات سانس' : 'مرحله ۲ از ۲ — بازیکنان'}
-              </Text>
+              <Text style={styles.title}>ویرایش سانس</Text>
+              <Text style={styles.subtitle}>سانس {session.id}</Text>
             </View>
           </View>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={step === 1 ? onBack : () => setStep(1)}
+            onPress={onBack}
             activeOpacity={0.7}
           >
             <ChevronIcon
@@ -388,7 +281,118 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {step === 1 ? step1Form : step2Content}
+        <View style={styles.formSection}>
+          <Card style={styles.formCard}>
+            <View style={[styles.formRowsContainer, isTablet && styles.formRowsTablet]}>
+              <View style={[styles.formRow, isTablet && styles.formRowTablet]}>
+                <Text style={styles.label}>گرداننده</Text>
+                <Dropdown
+                  options={facilitators.map((f) => ({ id: f.id, label: f.name }))}
+                  selectedId={selectedFacilitator}
+                  onSelect={(opt) => setSelectedFacilitator(opt.id)}
+                  placeholder="انتخاب گرداننده"
+                />
+              </View>
+              <View style={[styles.formRow, isTablet && styles.formRowTablet]}>
+                <Text style={styles.label}>سالن</Text>
+                <Dropdown
+                  options={halls.map((h) => ({ id: h.id, label: h.name }))}
+                  selectedId={selectedHall}
+                  onSelect={(opt) => setSelectedHall(opt.id)}
+                  placeholder="انتخاب سالن"
+                />
+              </View>
+              <View style={[styles.formRow, isTablet && styles.formRowTablet]}>
+                <Text style={styles.label}>تاریخ</Text>
+                <TextInput
+                  style={styles.dateInput}
+                  value={date}
+                  onChangeText={setDate}
+                  placeholder="۱۴۰۳/۰۱/۱۵"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  keyboardType="numbers-and-punctuation"
+                />
+              </View>
+              <View style={[styles.formRow, isTablet && styles.formRowTablet]}>
+                <Text style={styles.label}>نوع سانس</Text>
+                <View style={styles.shiftRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.shiftButton,
+                      sessionShift === 'day' && styles.shiftButtonSelected,
+                    ]}
+                    onPress={() => setSessionShift('day')}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.shiftButtonText,
+                        sessionShift === 'day' && styles.shiftButtonTextSelected,
+                      ]}
+                    >
+                      سانس روز
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.shiftButton,
+                      sessionShift === 'night' && styles.shiftButtonSelected,
+                    ]}
+                    onPress={() => setSessionShift('night')}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.shiftButtonText,
+                        sessionShift === 'night' && styles.shiftButtonTextSelected,
+                      ]}
+                    >
+                      سانس شب
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={[styles.formRow, isTablet && styles.formRowTablet]}>
+                <Text style={styles.label}>زمان</Text>
+                <DebouncedTimeInput
+                  value={time}
+                  onChangeText={setTime}
+                  onValueRef={(t) => {
+                    timeRef.current = t ?? time;
+                  }}
+                  placeholder="۲۰:۰۰"
+                  style={styles.timeInput}
+                />
+              </View>
+            </View>
+          </Card>
+
+          <View style={styles.playersSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>بازیکنان</Text>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={handleAddPlayer}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.addButtonText}>+ افزودن بازیکن</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <FlatList
+          style={styles.list}
+          contentContainerStyle={styles.content}
+          data={displayedPlayers}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          ListEmptyComponent={renderListEmpty}
+          ListFooterComponent={renderListFooter}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.3}
+          keyboardShouldPersistTaps="handled"
+        />
 
         <AddPlayerModal
           visible={playerModalVisible}
@@ -407,15 +411,27 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
   safe: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   keyboardView: {
     flex: 1,
   },
-  listWrapper: {
-    flex: 1,
+  errorText: {
+    ...theme.typography.body,
+    color: theme.colors.error,
+    fontFamily: 'Vazirmatn-Regular',
+    textAlign: 'center',
+    padding: theme.spacing.xl,
   },
   formSection: {
     backgroundColor: theme.colors.background,
@@ -458,9 +474,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTextWrap: {
-    flex: 1,
-  },
+  headerTextWrap: { flex: 1 },
   title: {
     ...theme.typography.h2,
     fontSize: 22,
@@ -493,41 +507,6 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.lg,
     ...theme.shadows.sm,
   },
-  continueButton: {
-    marginTop: theme.spacing.md,
-  },
-  summaryCard: {
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.xl,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    ...theme.shadows.sm,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  summaryLabel: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-    fontFamily: 'Vazirmatn-Regular',
-  },
-  summaryValue: {
-    ...theme.typography.body,
-    color: theme.colors.text,
-    fontFamily: 'Vazirmatn-Bold',
-  },
-  summaryEditHint: {
-    ...theme.typography.caption,
-    color: theme.colors.primary,
-    fontFamily: 'Vazirmatn-Regular',
-    marginTop: theme.spacing.sm,
-    textAlign: 'center',
-  },
   formRowsContainer: {},
   formRowsTablet: {
     flexDirection: 'row',
@@ -547,6 +526,17 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     fontFamily: 'Vazirmatn-Regular',
     marginBottom: theme.spacing.sm,
+  },
+  dateInput: {
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    ...theme.typography.body,
+    color: theme.colors.text,
+    fontFamily: 'Vazirmatn-Regular',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.inputOutline,
   },
   timeInput: {
     backgroundColor: theme.colors.background,
@@ -587,9 +577,7 @@ const styles = StyleSheet.create({
     color: theme.colors.primary,
     fontFamily: 'Vazirmatn-Bold',
   },
-  playersSection: {
-    marginBottom: theme.spacing.xl,
-  },
+  playersSection: { marginBottom: theme.spacing.xl },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -625,9 +613,7 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.border,
     borderStyle: 'dashed',
   },
-  emptyIconWrap: {
-    marginBottom: theme.spacing.lg,
-  },
+  emptyIconWrap: { marginBottom: theme.spacing.lg },
   emptyTitle: {
     ...theme.typography.h2,
     color: theme.colors.text,
@@ -641,9 +627,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Vazirmatn-Regular',
     textAlign: 'center',
   },
-  submitButton: {
-    marginTop: theme.spacing.lg,
-  },
+  submitButton: { marginTop: theme.spacing.lg },
   loadMoreFooter: {
     paddingVertical: theme.spacing.lg,
     alignItems: 'center',

@@ -63,6 +63,21 @@ export function persianToGregorian(persianDate: string): string {
 }
 
 /**
+ * Return Gregorian YYYY-MM-DD for DB storage.
+ * If dateStr is already Gregorian (YYYY-MM-DD, year 1900–2100), return as-is.
+ * Otherwise treat as Persian and convert via persianToGregorian.
+ */
+export function toGregorianForDb(dateStr: string): string {
+  if (!dateStr) return '';
+  const trimmed = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const year = parseInt(trimmed.slice(0, 4), 10);
+    if (year >= 1900 && year <= 2100) return trimmed;
+  }
+  return persianToGregorian(dateStr);
+}
+
+/**
  * Convert Gregorian date (YYYY-MM-DD) to Persian format (YYYY/MM/DD)
  */
 export function gregorianToPersian(gregorianDate: string): string {

@@ -54,6 +54,15 @@ async function initSchema(database: SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_sessions_gregorian_date ON sessions(gregorian_date);
     CREATE INDEX IF NOT EXISTS idx_sessions_facilitator ON sessions(facilitator_id);
   `);
+  await addShiftColumnIfNeeded(database);
+}
+
+async function addShiftColumnIfNeeded(database: SQLiteDatabase): Promise<void> {
+  try {
+    await database.execAsync('ALTER TABLE sessions ADD COLUMN shift TEXT');
+  } catch {
+    // Column already exists (duplicate column name)
+  }
 }
 
 export async function closeDatabase(): Promise<void> {

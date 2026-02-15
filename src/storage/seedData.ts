@@ -3,6 +3,7 @@ import type {
   Facilitator,
   Hall,
   MenuItem,
+  OrderLine,
   Player,
   Session,
 } from '../types';
@@ -169,15 +170,25 @@ export function generateLargeSeedData(sessionCount?: number): SeedDataResult {
     const players: Player[] = [];
 
     for (let p = 0; p < playerCount; p++) {
+      const personCount = Math.random() < 0.1 ? 2 : 1;
       const orderCount = Math.random() < 0.45 ? 0 : randomInt(1, 3);
-      const orders: MenuItem[] = [];
+      const orders: OrderLine[] = [];
       for (let o = 0; o < orderCount; o++) {
-        orders.push(randomPick(menuItems));
+        const item = randomPick(menuItems);
+        const quantity = Math.random() < 0.15 ? 2 : 1;
+        orders.push({
+          id: `line_${s}_${p}_${o}_${Math.random().toString(36).slice(2, 8)}`,
+          menuItemId: item.id,
+          name: item.name,
+          price: item.price,
+          quantity,
+        });
       }
       players.push({
         id: generatePlayerId(s, p),
         name: `${randomPick(PERSIAN_FIRST_NAMES)} ${randomPick(PERSIAN_LAST_NAMES)}`,
         isGuest: Math.random() < 0.2,
+        count: personCount,
         orders,
       });
     }

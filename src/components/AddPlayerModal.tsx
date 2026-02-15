@@ -21,7 +21,8 @@ import { FilterChips } from './FilterChips';
 import { theme } from '../constants/theme';
 import { toPersianWithSeparator } from '../utils/toPersian';
 import { useResponsive } from '../utils/responsive';
-import type { Player, MenuItem } from '../types';
+import { normalizePlayer } from '../utils/sessionNormalize';
+import type { Player, MenuItem, OrderLine } from '../types';
 
 const MODAL_MAX_WIDTH = 480;
 const SEARCH_DEBOUNCE_MS = 180;
@@ -71,7 +72,8 @@ export const AddPlayerModal: React.FC<AddPlayerModalProps> = ({
 
   const [name, setName] = useState('');
   const [isGuest, setIsGuest] = useState(false);
-  const [orders, setOrders] = useState<MenuItem[]>([]);
+  const [count, setCount] = useState(1);
+  const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
@@ -105,13 +107,16 @@ export const AddPlayerModal: React.FC<AddPlayerModalProps> = ({
   React.useEffect(() => {
     if (visible) {
       if (editingPlayer) {
-        setName(editingPlayer.name);
-        setIsGuest(editingPlayer.isGuest);
-        setOrders([...editingPlayer.orders]);
+        const normalized = normalizePlayer(editingPlayer);
+        setName(normalized.name);
+        setIsGuest(normalized.isGuest);
+        setCount(normalized.count ?? 1);
+        setOrderLines([...normalized.orders]);
       } else {
         setName('');
         setIsGuest(false);
-        setOrders([]);
+        setCount(1);
+        setOrderLines([]);
       }
       setSearchQuery('');
       setSelectedCategoryId('all');
@@ -139,29 +144,59 @@ export const AddPlayerModal: React.FC<AddPlayerModalProps> = ({
     [categories]
   );
 
-  const handleToggleItem = useCallback((item: MenuItem) => {
-    setOrders((prev) => {
-      const hasItem = prev.some((o) => o.id === item.id);
-      return hasItem ? prev.filter((o) => o.id !== item.id) : [...prev, item];
+  const handleAddOrIncrementItem = useCallback((item: MenuItem) => {
+    setOrderLines((prev) => {
+      const existing = prev.find((o) => o.menuItemId === item.id);
+      if (existing) {
+        return prev.map((o) =>
+          o.menuItemId === item.id ? { ...o, quantity: o.quantity + 1 } : o
+        );
+      }
+      const line: OrderLine = {
+        id: `line_${Date.now()}_${item.id}`,
+        menuItemId: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: 1,
+      };
+      return [...prev, line];
+    });
+  }, []);
+
+  const handleIncrementLine = useCallback((lineId: string) => {
+    setOrderLines((prev) =>
+      prev.map((o) => (o.id === lineId ? { ...o, quantity: o.quantity + 1 } : o))
+    );
+  }, []);
+
+  const handleDecrementLine = useCallback((lineId: string) => {
+    setOrderLines((prev) => {
+      const line = prev.find((o) => o.id === lineId);
+      if (!line) return prev;
+      if (line.quantity <= 1) return prev.filter((o) => o.id !== lineId);
+      return prev.map((o) =>
+        o.id === lineId ? { ...o, quantity: o.quantity - 1 } : o
+      );
     });
   }, []);
 
   const renderMenuItem: ListRenderItem<MenuItem> = useCallback(
     ({ item }) => {
-      const isSelected = orders.some((o) => o.id === item.id);
+      const line = orderLines.find((o) => o.menuItemId === item.id);
+      const qty = line?.quantity ?? 0;
       return (
         <TouchableOpacity
-          onPress={() => handleToggleItem(item)}
+          onPress={() => handleAddOrIncrementItem(item)}
           activeOpacity={0.7}
           style={[
             styles.menuRow,
-            isSelected && styles.menuRowSelected,
+            qty > 0 && styles.menuRowSelected,
           ]}
         >
           <Text
             style={[
               styles.menuRowName,
-              isSelected && styles.menuRowNameSelected,
+              qty > 0 && styles.menuRowNameSelected,
             ]}
             numberOfLines={1}
           >
@@ -169,14 +204,15 @@ export const AddPlayerModal: React.FC<AddPlayerModalProps> = ({
           </Text>
           <Text style={styles.menuRowPrice}>
             {toPersianWithSeparator(item.price)} تومان
+            {qty > 0 ? ` • ${qty}` : ''}
           </Text>
-          {isSelected && (
+          {qty > 0 && (
             <View style={styles.checkDot} />
           )}
         </TouchableOpacity>
       );
     },
-    [orders, handleToggleItem]
+    [orderLines, handleAddOrIncrementItem]
   );
 
   const getItemLayout = useCallback(
@@ -203,11 +239,13 @@ export const AddPlayerModal: React.FC<AddPlayerModalProps> = ({
       toast.error('لطفاً نام بازیکن را وارد کنید.');
       return;
     }
+    const personCount = count >= 1 ? count : 1;
     const player: Player = {
       id: editingPlayer?.id ?? Date.now().toString(),
       name: trimmedName,
       isGuest,
-      orders,
+      count: personCount,
+      orders: orderLines.filter((l) => l.quantity >= 1),
     };
     onSave(player);
     toast.success(editingPlayer ? 'بازیکن ویرایش شد.' : 'بازیکن اضافه شد.');
@@ -254,11 +292,60 @@ export const AddPlayerModal: React.FC<AddPlayerModalProps> = ({
               placeholder="نام بازیکن"
               placeholderTextColor={theme.colors.textSecondary}
             />
+            <View style={styles.countCell}>
+              <Text style={styles.countLabel}>تعداد نفر</Text>
+              <View style={styles.countStepper}>
+                <TouchableOpacity
+                  style={styles.stepperBtn}
+                  onPress={() => setCount((c) => (c > 1 ? c - 1 : 1))}
+                >
+                  <Text style={styles.stepperBtnText}>−</Text>
+                </TouchableOpacity>
+                <Text style={styles.countValue}>{count}</Text>
+                <TouchableOpacity
+                  style={styles.stepperBtn}
+                  onPress={() => setCount((c) => c + 1)}
+                >
+                  <Text style={styles.stepperBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
             <View style={styles.guestCell}>
               <Text style={styles.guestLabel}>مهمان</Text>
               <ToggleSwitch value={isGuest} onValueChange={setIsGuest} />
             </View>
           </View>
+
+          {orderLines.length > 0 ? (
+            <View style={styles.selectedOrdersSection}>
+              <Text style={styles.selectedOrdersTitle}>سفارش‌های انتخاب‌شده</Text>
+              {orderLines.map((line) => (
+                <View key={line.id} style={styles.orderLineRow}>
+                  <Text style={styles.orderLineName} numberOfLines={1}>
+                    {line.name}
+                  </Text>
+                  <View style={styles.orderLineQty}>
+                    <TouchableOpacity
+                      style={styles.stepperBtnSmall}
+                      onPress={() => handleDecrementLine(line.id)}
+                    >
+                      <Text style={styles.stepperBtnText}>−</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.orderLineQtyText}>{line.quantity}</Text>
+                    <TouchableOpacity
+                      style={styles.stepperBtnSmall}
+                      onPress={() => handleIncrementLine(line.id)}
+                    >
+                      <Text style={styles.stepperBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.orderLinePrice}>
+                    {toPersianWithSeparator(line.price * line.quantity)} تومان
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
 
           <View style={styles.toolbar}>
             <TextInput
@@ -359,6 +446,95 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     ...theme.inputOutline,
+  },
+  countCell: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  countLabel: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Vazirmatn-Regular',
+  },
+  countStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  stepperBtn: {
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    minWidth: 36,
+    alignItems: 'center',
+  },
+  stepperBtnSmall: {
+    paddingVertical: 2,
+    paddingHorizontal: theme.spacing.xs,
+    minWidth: 28,
+    alignItems: 'center',
+  },
+  stepperBtnText: {
+    fontSize: 16,
+    color: theme.colors.primary,
+    fontFamily: 'Vazirmatn-Bold',
+  },
+  countValue: {
+    fontSize: 14,
+    color: theme.colors.text,
+    fontFamily: 'Vazirmatn-Bold',
+    minWidth: 24,
+    textAlign: 'center',
+  },
+  selectedOrdersSection: {
+    marginBottom: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  selectedOrdersTitle: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Vazirmatn-Regular',
+    marginBottom: theme.spacing.xs,
+  },
+  orderLineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xs,
+    gap: theme.spacing.sm,
+  },
+  orderLineName: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.text,
+    fontFamily: 'Vazirmatn-Regular',
+  },
+  orderLineQty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.borderRadius.xs,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  orderLineQtyText: {
+    fontSize: 13,
+    color: theme.colors.text,
+    fontFamily: 'Vazirmatn-Bold',
+    minWidth: 20,
+    textAlign: 'center',
+  },
+  orderLinePrice: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Vazirmatn-Regular',
   },
   guestCell: {
     flexDirection: 'row',

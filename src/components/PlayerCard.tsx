@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Card } from './Card';
 import { ToggleSwitch } from './ToggleSwitch';
 import { theme } from '../constants/theme';
-import { toPersianWithSeparator } from '../utils/toPersian';
+import { toPersianWithSeparator, toPersianNumber } from '../utils/toPersian';
 import type { Player } from '../types';
 
 interface PlayerCardProps {
@@ -21,8 +21,12 @@ const PlayerCardComponent: React.FC<PlayerCardProps> = ({
   onEdit,
   onDelete,
 }) => {
-  const totalPrice = player.orders.reduce((sum, item) => sum + item.price, 0);
+  const totalPrice = player.orders.reduce(
+    (sum, line) => sum + line.price * (line.quantity ?? 1),
+    0
+  );
   const showActions = onEdit || onDelete;
+  const personCount = player.count ?? 1;
 
   return (
     <Card style={styles.card}>
@@ -30,6 +34,11 @@ const PlayerCardComponent: React.FC<PlayerCardProps> = ({
         <View style={styles.header}>
           <View style={styles.nameRow}>
             <Text style={styles.playerName}>{player.name}</Text>
+            {personCount > 1 && (
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{toPersianNumber(personCount)} نفر</Text>
+              </View>
+            )}
             {player.isGuest && (
               <View style={styles.guestBadge}>
                 <Text style={styles.guestText}>مهمان</Text>
@@ -48,14 +57,21 @@ const PlayerCardComponent: React.FC<PlayerCardProps> = ({
         </View>
         <View style={styles.ordersSection}>
           <Text style={styles.ordersTitle}>سفارشات:</Text>
-          {player.orders.map((order) => (
-            <View key={order.id} style={styles.orderItem}>
-              <Text style={styles.orderName}>{order.name}</Text>
-              <Text style={styles.orderPrice}>
-                {toPersianWithSeparator(order.price)} تومان
-              </Text>
-            </View>
-          ))}
+          {player.orders.map((order) => {
+            const qty = order.quantity ?? 1;
+            const lineTotal = order.price * qty;
+            return (
+              <View key={order.id} style={styles.orderItem}>
+                <Text style={styles.orderName}>
+                  {order.name}
+                  {qty > 1 ? ` × ${toPersianNumber(qty)}` : ''}
+                </Text>
+                <Text style={styles.orderPrice}>
+                  {toPersianWithSeparator(lineTotal)} تومان
+                </Text>
+              </View>
+            );
+          })}
         </View>
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>جمع کل:</Text>
@@ -107,6 +123,20 @@ const styles = StyleSheet.create({
     ...theme.typography.h3,
     color: theme.colors.text,
     fontFamily: 'Vazirmatn-Bold',
+  },
+  countBadge: {
+    marginRight: theme.spacing.sm,
+    backgroundColor: theme.colors.background,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  countBadgeText: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Vazirmatn-Regular',
   },
   guestBadge: {
     marginRight: theme.spacing.sm,

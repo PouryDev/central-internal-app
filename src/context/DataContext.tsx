@@ -39,6 +39,7 @@ interface DataContextValue {
     facilitators: Facilitator[]
   ) => Promise<SessionStats>;
   addSession: (session: Session) => Promise<void>;
+  updateSession: (session: Session) => Promise<void>;
   updateSessionStatus: (sessionId: string, status: 'pending' | 'paid') => Promise<void>;
   addFacilitator: (facilitator: Facilitator) => Promise<void>;
   updateFacilitator: (id: string, updates: Partial<Facilitator>) => Promise<void>;
@@ -139,6 +140,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const addSession = useCallback(async (session: Session) => {
     await db.addSession(session);
     setSessions((prev) => [session, ...prev]);
+  }, []);
+
+  const updateSession = useCallback(async (session: Session) => {
+    await db.updateSession(session);
+    setSessions((prev) =>
+      prev.map((s) => (s.id === session.id ? session : s))
+    );
   }, []);
 
   const updateSessionStatus = useCallback(
@@ -298,6 +306,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       getSessionById,
       getSessionStats,
       addSession,
+      updateSession,
       updateSessionStatus,
       addFacilitator,
       updateFacilitator,
@@ -330,6 +339,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       getSessionById,
       getSessionStats,
       addSession,
+      updateSession,
       updateSessionStatus,
       addFacilitator,
       updateFacilitator,

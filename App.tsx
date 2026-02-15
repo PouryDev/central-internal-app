@@ -18,6 +18,7 @@ import { HomeScreen } from './src/screens/HomeScreen';
 import { SessionCreateScreen } from './src/screens/SessionCreateScreen';
 import { CashierPanelScreen } from './src/screens/CashierPanelScreen';
 import { SessionDetailsScreen } from './src/screens/SessionDetailsScreen';
+import { SessionEditScreen } from './src/screens/SessionEditScreen';
 import { AdminPanelScreen } from './src/screens/AdminPanelScreen';
 import { theme } from './src/constants/theme';
 import { toast } from './src/utils/toast';
@@ -28,12 +29,14 @@ type Screen =
   | 'session-create'
   | 'cashier-panel'
   | 'session-details'
+  | 'session-edit'
   | 'admin-panel';
 
 function AppContent() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
+  const [refreshSessionDetailsKey, setRefreshSessionDetailsKey] = useState(0);
   const { addSession, updateSessionStatus } = useData();
 
   useEffect(() => {
@@ -75,6 +78,10 @@ function AppContent() {
     if (Platform.OS !== 'android') return;
 
     const onBackPress = () => {
+      if (currentScreen === 'session-edit') {
+        handleBackFromSessionEdit();
+        return true;
+      }
       if (currentScreen === 'session-details') {
         handleBackFromSessionDetails();
         return true;
@@ -89,7 +96,7 @@ function AppContent() {
 
     const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => sub.remove();
-  }, [currentScreen, handleBack, handleBackFromSessionDetails]);
+  }, [currentScreen, handleBack, handleBackFromSessionDetails, handleBackFromSessionEdit]);
 
   const handleNavigateToSessionCreate = () => {
     setCurrentScreen('session-create');
@@ -107,6 +114,19 @@ function AppContent() {
     setSelectedSessionId(sessionId);
     setCurrentScreen('session-details');
   };
+
+  const handleEditSession = useCallback(() => {
+    setCurrentScreen('session-edit');
+  }, []);
+
+  const handleBackFromSessionEdit = useCallback(() => {
+    setCurrentScreen('session-details');
+  }, []);
+
+  const handleSavedFromSessionEdit = useCallback(() => {
+    setRefreshSessionDetailsKey((k) => k + 1);
+    setCurrentScreen('session-details');
+  }, []);
 
   const handleSubmitSession = async (session: Session) => {
     await addSession(session);
@@ -152,9 +172,18 @@ function AppContent() {
       )}
       {currentScreen === 'session-details' && (
         <SessionDetailsScreen
+          key={refreshSessionDetailsKey}
           sessionId={selectedSessionId}
           onBack={handleBackFromSessionDetails}
           onMarkAsPaid={handleMarkAsPaid}
+          onEditSession={handleEditSession}
+        />
+      )}
+      {currentScreen === 'session-edit' && (
+        <SessionEditScreen
+          sessionId={selectedSessionId}
+          onBack={handleBackFromSessionEdit}
+          onSaved={handleSavedFromSessionEdit}
         />
       )}
       {currentScreen === 'admin-panel' && (

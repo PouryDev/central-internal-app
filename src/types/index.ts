@@ -17,11 +17,22 @@ export interface MenuItem {
   description?: string;
 }
 
+/** A single order line: menu item with quantity (snapshot name/price for display). */
+export interface OrderLine {
+  id: string;
+  menuItemId: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
 export interface Player {
   id: string;
   name: string;
   isGuest: boolean;
-  orders: MenuItem[];
+  /** Number of persons this player represents (default 1). */
+  count?: number;
+  orders: OrderLine[];
 }
 
 export interface Session {
@@ -32,6 +43,8 @@ export interface Session {
   date: string;
   players: Player[];
   status: 'pending' | 'paid';
+  /** Day or night session; default 'night' for legacy data. */
+  shift?: 'day' | 'night';
 }
 
 export interface Hall {

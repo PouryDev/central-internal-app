@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDatabase } from './sqlite';
-import { persianToGregorian } from '../utils/date';
+import { persianToGregorian, toGregorianForDb } from '../utils/date';
+import { normalizeSession, normalizePlayer, getTotalPlayerCount } from '../utils/sessionNormalize';
 import { generateLargeSeedData } from './seedData';
 import type {
   Category,
@@ -47,9 +48,11 @@ function sessionFromRow(row: {
   date: string;
   status: string;
   players_json: string;
+  shift?: string | null;
 }): Session {
   const players = JSON.parse(row.players_json || '[]') as Session['players'];
-  return {
+  const shift = row.shift === 'day' || row.shift === 'night' ? row.shift : 'night';
+  const session: Session = {
     id: row.id,
     facilitator: { id: row.facilitator_id, name: row.facilitator_name },
     hall: row.hall,
@@ -57,7 +60,9 @@ function sessionFromRow(row: {
     date: row.date,
     players,
     status: row.status as 'pending' | 'paid',
+    shift,
   };
+  return normalizeSession(session);
 }
 
 export async function getSessionsPage(
@@ -111,8 +116,9 @@ export async function getSessionsPage(
     date: string;
     status: string;
     players_json: string;
+    shift?: string | null;
   }>(
-    `SELECT id, facilitator_id, facilitator_name, hall, time, date, status, players_json
+    `SELECT id, facilitator_id, facilitator_name, hall, time, date, status, players_json, shift
      FROM sessions ${whereClause}
      ORDER BY gregorian_date DESC, time DESC
      LIMIT ? OFFSET ?`,
@@ -134,8 +140,9 @@ export async function getSessionById(id: string): Promise<Session | null> {
     date: string;
     status: string;
     players_json: string;
+    shift?: string | null;
   }>(
-    'SELECT id, facilitator_id, facilitator_name, hall, time, date, status, players_json FROM sessions WHERE id = ?',
+    'SELECT id, facilitator_id, facilitator_name, hall, time, date, status, players_json, shift FROM sessions WHERE id = ?',
     id
   );
   return row ? sessionFromRow(row) : null;
@@ -221,20 +228,23 @@ export async function getSessionStats(
   );
 
   for await (const row of rows) {
-    const players = JSON.parse(row.players_json || '[]') as Session['players'];
+    const rawPlayers = JSON.parse(row.players_json || '[]') as Session['players'];
+    const players = rawPlayers.map(normalizePlayer);
+    const sessionCount = getTotalPlayerCount(players);
     for (const p of players) {
+      const c = p.count ?? 1;
       if (guestType === 'all') {
-        totalPlayers++;
+        totalPlayers += c;
         facilitatorCounts[row.facilitator_id] =
-          (facilitatorCounts[row.facilitator_id] ?? 0) + 1;
+          (facilitatorCounts[row.facilitator_id] ?? 0) + c;
       } else if (guestType === 'guests' && p.isGuest) {
-        totalPlayers++;
+        totalPlayers += c;
         facilitatorCounts[row.facilitator_id] =
-          (facilitatorCounts[row.facilitator_id] ?? 0) + 1;
+          (facilitatorCounts[row.facilitator_id] ?? 0) + c;
       } else if (guestType === 'non-guests' && !p.isGuest) {
-        totalPlayers++;
+        totalPlayers += c;
         facilitatorCounts[row.facilitator_id] =
-          (facilitatorCounts[row.facilitator_id] ?? 0) + 1;
+          (facilitatorCounts[row.facilitator_id] ?? 0) + c;
       }
     }
   }
@@ -255,10 +265,11 @@ export async function getSessionStats(
 
 export async function addSession(session: Session): Promise<void> {
   const db = await getDatabase();
-  const gregorianDate = persianToGregorian(session.date) || session.date;
+  const gregorianDate = toGregorianForDb(session.date) || session.date;
+  const shift = session.shift === 'day' || session.shift === 'night' ? session.shift : 'night';
   await db.runAsync(
-    `INSERT INTO sessions (id, facilitator_id, facilitator_name, hall, time, date, gregorian_date, status, players_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO sessions (id, facilitator_id, facilitator_name, hall, time, date, gregorian_date, status, players_json, shift)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     session.id,
     session.facilitator.id,
     session.facilitator.name,
@@ -267,7 +278,8 @@ export async function addSession(session: Session): Promise<void> {
     session.date,
     gregorianDate,
     session.status,
-    JSON.stringify(session.players)
+    JSON.stringify(session.players),
+    shift
   );
 }
 
@@ -277,6 +289,28 @@ export async function updateSessionStatus(
 ): Promise<void> {
   const db = await getDatabase();
   await db.runAsync('UPDATE sessions SET status = ? WHERE id = ?', status, sessionId);
+}
+
+export async function updateSession(session: Session): Promise<void> {
+  const db = await getDatabase();
+  const gregorianDate = toGregorianForDb(session.date) || session.date;
+  const shift = session.shift === 'day' || session.shift === 'night' ? session.shift : 'night';
+  await db.runAsync(
+    `UPDATE sessions SET
+       facilitator_id = ?, facilitator_name = ?, hall = ?, time = ?, date = ?, gregorian_date = ?,
+       status = ?, players_json = ?, shift = ?
+     WHERE id = ?`,
+    session.facilitator.id,
+    session.facilitator.name,
+    session.hall,
+    session.time,
+    session.date,
+    gregorianDate,
+    session.status,
+    JSON.stringify(session.players),
+    shift,
+    session.id
+  );
 }
 
 // facilitators, halls, menu_items, categories - CRUD via SQLite
@@ -489,8 +523,9 @@ export async function getSessionsForExport(): Promise<Session[]> {
     date: string;
     status: string;
     players_json: string;
+    shift?: string | null;
   }>(
-    'SELECT id, facilitator_id, facilitator_name, hall, time, date, status, players_json FROM sessions ORDER BY gregorian_date DESC, time DESC'
+    'SELECT id, facilitator_id, facilitator_name, hall, time, date, status, players_json, shift FROM sessions ORDER BY gregorian_date DESC, time DESC'
   );
   return rows.map(sessionFromRow);
 }
@@ -511,11 +546,9 @@ export async function clearAsyncStorage(): Promise<void> {
   await AsyncStorage.multiRemove(keys);
 }
 
-const GREGORIAN_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-
 /**
- * Fix sessions where gregorian_date was stored in wrong format (e.g. Persian D/M/Y).
- * Updates them to YYYY-MM-DD using persianToGregorian(date).
+ * Fix sessions where gregorian_date was wrong (wrong format or wrong conversion when date was already Gregorian).
+ * Recomputes gregorian_date from date using toGregorianForDb.
  */
 export async function fixSessionsGregorianDates(): Promise<void> {
   const db = await getDatabase();
@@ -523,12 +556,9 @@ export async function fixSessionsGregorianDates(): Promise<void> {
     'SELECT id, date, gregorian_date FROM sessions'
   );
   for await (const row of rows) {
-    const g = row.gregorian_date ?? '';
-    if (!GREGORIAN_DATE_REGEX.test(g)) {
-      const fixed = persianToGregorian(row.date);
-      if (fixed) {
-        await db.runAsync('UPDATE sessions SET gregorian_date = ? WHERE id = ?', fixed, row.id);
-      }
+    const fixed = toGregorianForDb(row.date);
+    if (fixed) {
+      await db.runAsync('UPDATE sessions SET gregorian_date = ? WHERE id = ?', fixed, row.id);
     }
   }
 }
@@ -628,19 +658,22 @@ export async function importDataFromJson(data: {
     for (let i = 0; i < data.sessions.length; i += BATCH_SIZE) {
       const batch = data.sessions.slice(i, i + BATCH_SIZE);
       for (const s of batch) {
-        const gregorianDate = persianToGregorian(s.date) || s.date;
+        const normalized = normalizeSession(s);
+        const gregorianDate = toGregorianForDb(normalized.date) || normalized.date;
+        const shift = normalized.shift === 'day' || normalized.shift === 'night' ? normalized.shift : 'night';
         await db.runAsync(
-          `INSERT INTO sessions (id, facilitator_id, facilitator_name, hall, time, date, gregorian_date, status, players_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          s.id,
-          s.facilitator.id,
-          s.facilitator.name,
-          s.hall,
-          s.time,
-          s.date,
+          `INSERT INTO sessions (id, facilitator_id, facilitator_name, hall, time, date, gregorian_date, status, players_json, shift)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          normalized.id,
+          normalized.facilitator.id,
+          normalized.facilitator.name,
+          normalized.hall,
+          normalized.time,
+          normalized.date,
           gregorianDate,
-          s.status,
-          JSON.stringify(s.players)
+          normalized.status,
+          JSON.stringify(normalized.players),
+          shift
         );
       }
     }

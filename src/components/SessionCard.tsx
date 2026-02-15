@@ -6,6 +6,7 @@ import { ClockIcon } from './Icons';
 import { theme } from '../constants/theme';
 import { toPersianNumber } from '../utils/toPersian';
 import { formatDateForDisplay } from '../utils/date';
+import { getPlayerCounts } from '../utils/sessionNormalize';
 import type { Session } from '../types';
 
 interface SessionCardProps {
@@ -17,8 +18,7 @@ const SessionCardComponent: React.FC<SessionCardProps> = ({ session, onPress }) 
   const persianId = toPersianNumber(session.id);
   const persianDate = toPersianNumber(formatDateForDisplay(session.date));
   const persianTime = toPersianNumber(session.time);
-  const userCount = session.players.filter((p) => !p.isGuest).length;
-  const guestCount = session.players.filter((p) => p.isGuest).length;
+  const { userCount, guestCount } = getPlayerCounts(session.players);
   const persianUser = toPersianNumber(userCount);
   const persianGuest = toPersianNumber(guestCount);
 

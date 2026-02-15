@@ -19,6 +19,7 @@ import { UserIcon, BuildingIcon, ClockIcon, ClipboardIcon, ChevronIcon, UsersIco
 import { theme } from '../constants/theme';
 import { toPersianNumber } from '../utils/toPersian';
 import { formatDateForDisplay } from '../utils/date';
+import { getPlayerCounts } from '../utils/sessionNormalize';
 import { useData } from '../context/DataContext';
 import { useResponsive } from '../utils/responsive';
 import type { Player, Session } from '../types';
@@ -29,12 +30,14 @@ interface SessionDetailsScreenProps {
   sessionId: string;
   onBack: () => void;
   onMarkAsPaid: () => void;
+  onEditSession?: () => void;
 }
 
 export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
   sessionId,
   onBack,
   onMarkAsPaid,
+  onEditSession,
 }) => {
   const { contentMaxWidth, isTablet } = useResponsive();
   const { getSessionById, loading } = useData();
@@ -103,10 +106,18 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
                   {toPersianNumber(formatDateForDisplay(session.date))} • {toPersianNumber(session.time)}
                 </Text>
               </View>
+              {(session.shift === 'day' || session.shift === 'night') && (
+                <View style={styles.infoItem}>
+                  <ClipboardIcon size={18} color={theme.colors.textSecondary} />
+                  <Text style={styles.infoValue}>
+                    {session.shift === 'day' ? 'سانس روز' : 'سانس شب'}
+                  </Text>
+                </View>
+              )}
               <View style={styles.infoItem}>
                 <UsersIcon size={18} color={theme.colors.textSecondary} />
                 <Text style={styles.infoValue}>
-                  یوزر: {toPersianNumber(session.players.filter((p) => !p.isGuest).length)} • مهمان: {toPersianNumber(session.players.filter((p) => p.isGuest).length)}
+                  یوزر: {toPersianNumber(getPlayerCounts(session.players).userCount)} • مهمان: {toPersianNumber(getPlayerCounts(session.players).guestCount)}
                 </Text>
               </View>
             </View>
@@ -129,17 +140,27 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
               <ActivityIndicator size="small" color={theme.colors.primary} />
             </View>
           ) : null}
-          {session.status === 'pending' && (
-            <Button
-              title="تسویه شد"
-              onPress={handleMarkAsPaid}
-              loading={markingPaid}
-              style={styles.payButton}
-            />
-          )}
+          <View style={styles.footerActions}>
+            {onEditSession && (
+              <Button
+                title="ویرایش سانس"
+                onPress={onEditSession}
+                variant="secondary"
+                style={styles.editButton}
+              />
+            )}
+            {session.status === 'pending' && (
+              <Button
+                title="تسویه شد"
+                onPress={handleMarkAsPaid}
+                loading={markingPaid}
+                style={styles.payButton}
+              />
+            )}
+          </View>
         </>
       ) : null,
-    [session, hasMore, handleMarkAsPaid, markingPaid]
+    [session, hasMore, handleMarkAsPaid, markingPaid, onEditSession]
   );
 
   if (loading || sessionLoading) {
@@ -324,8 +345,16 @@ const styles = StyleSheet.create({
     fontFamily: 'Vazirmatn-Bold',
     marginBottom: theme.spacing.md,
   },
-  payButton: {
+  footerActions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
     marginTop: theme.spacing.lg,
+  },
+  editButton: {
+    flex: 1,
+  },
+  payButton: {
+    flex: 1,
   },
   loadMoreFooter: {
     paddingVertical: theme.spacing.lg,
