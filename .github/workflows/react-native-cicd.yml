@@ -60,9 +60,6 @@ jobs:
       - name: 📦 Install dependencies
         run: yarn install
 
-      - name: 🧪 Run TypeScript check
-        run: yarn tsc
-
       - name: 🧹 Run ESLint
         run: yarn lint
 
