@@ -256,9 +256,6 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
     </View>
   );
 
-  const facilitatorName = facilitators.find((f) => f.id === selectedFacilitator)?.name ?? '';
-  const hallName = halls.find((h) => h.id === selectedHall)?.name ?? '';
-
   const renderListEmpty = useCallback(
     () => (
       <View style={styles.emptyState}>
@@ -293,34 +290,25 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
     [hasMore, submitting, handleSubmit]
   );
 
-  /** Step 2: summary of session info + players list. */
+  /** Step 2: quick back action + players list. */
   const step2Content = (
     <View style={styles.listWrapper}>
       <View style={styles.formSection}>
         <TouchableOpacity
-          style={styles.summaryCard}
+          style={styles.previousStepCard}
           onPress={() => setStep(1)}
           activeOpacity={0.8}
         >
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>گرداننده</Text>
-            <Text style={styles.summaryValue}>{facilitatorName}</Text>
+          <View style={styles.previousStepRow}>
+            <View style={styles.previousStepTextWrap}>
+              <Text style={styles.previousStepTitle}>بازگشت به مرحله قبل</Text>
+            </View>
+            <ChevronIcon
+              size={20}
+              color={theme.colors.primary}
+              direction={I18nManager.isRTL ? 'right' : 'left'}
+            />
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>سالن</Text>
-            <Text style={styles.summaryValue}>{hallName}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>نوع سانس</Text>
-            <Text style={styles.summaryValue}>
-              {sessionShift === 'day' ? 'سانس روز' : 'سانس شب'}
-            </Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>زمان</Text>
-            <Text style={styles.summaryValue}>{timeRef.current || time}</Text>
-          </View>
-          <Text style={styles.summaryEditHint}>برای تغییر لمس کنید</Text>
         </TouchableOpacity>
 
         <View style={styles.playersSection}>
@@ -496,37 +484,29 @@ const styles = StyleSheet.create({
   continueButton: {
     marginTop: theme.spacing.md,
   },
-  summaryCard: {
+  previousStepCard: {
     backgroundColor: theme.colors.card,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    marginBottom: theme.spacing.xl,
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,
     ...theme.shadows.sm,
   },
-  summaryRow: {
+  previousStepRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.sm,
   },
-  summaryLabel: {
+  previousStepTextWrap: {
+    flex: 1,
+    paddingRight: theme.spacing.md,
+  },
+  previousStepTitle: {
     ...theme.typography.body,
-    color: theme.colors.textSecondary,
-    fontFamily: 'Vazirmatn-Regular',
-  },
-  summaryValue: {
-    ...theme.typography.body,
-    color: theme.colors.text,
-    fontFamily: 'Vazirmatn-Bold',
-  },
-  summaryEditHint: {
-    ...theme.typography.caption,
     color: theme.colors.primary,
-    fontFamily: 'Vazirmatn-Regular',
-    marginTop: theme.spacing.sm,
-    textAlign: 'center',
+    fontFamily: 'Vazirmatn-Bold',
   },
   formRowsContainer: {},
   formRowsTablet: {
