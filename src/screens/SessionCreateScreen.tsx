@@ -340,7 +340,7 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
         style={styles.list}
         contentContainerStyle={styles.content}
         data={displayedPlayers}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => item.id || `player_${index}`}
         renderItem={renderItem}
         ListEmptyComponent={renderListEmpty}
         ListFooterComponent={renderListFooter}

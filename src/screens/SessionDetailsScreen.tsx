@@ -222,7 +222,7 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
           },
         ]}
         data={displayedPlayers}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, index) => item.id || `player_${index}`}
         renderItem={renderItem}
         ListHeaderComponent={renderListHeader}
         ListFooterComponent={renderListFooter}
