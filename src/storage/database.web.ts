@@ -199,6 +199,14 @@ export async function updateSessionStatus(
   }
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  const sessions = await getItem<Session[]>(ASYNC_KEYS.SESSIONS, []);
+  await setItem(
+    ASYNC_KEYS.SESSIONS,
+    sessions.filter((s) => s.id !== sessionId)
+  );
+}
+
 export async function getCategories(): Promise<Category[]> {
   return getItem<Category[]>(ASYNC_KEYS.CATEGORIES, []);
 }

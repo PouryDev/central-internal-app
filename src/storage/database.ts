@@ -313,6 +313,11 @@ export async function updateSession(session: Session): Promise<void> {
   );
 }
 
+export async function deleteSession(sessionId: string): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync('DELETE FROM sessions WHERE id = ?', sessionId);
+}
+
 // facilitators, halls, menu_items, categories - CRUD via SQLite
 export async function getCategories(): Promise<Category[]> {
   const db = await getDatabase();
