@@ -4,6 +4,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { persianToGregorian } from '../utils/date';
+import { normalizePlayer } from '../utils/sessionNormalize';
 import { generateLargeSeedData } from './seedData';
 import type {
   Category,
@@ -153,16 +154,22 @@ export async function getSessionStats(
   let totalPlayers = 0;
 
   for (const s of filtered) {
-    for (const p of s.players) {
+    const players = s.players.map((p, index) => normalizePlayer(p, index));
+    for (const p of players) {
+      if (p.isGameMaster) continue;
+      const c = p.count ?? 1;
       if (guestType === 'all') {
-        totalPlayers++;
-        facilitatorCounts[s.facilitator.id] = (facilitatorCounts[s.facilitator.id] ?? 0) + 1;
+        totalPlayers += c;
+        facilitatorCounts[s.facilitator.id] =
+          (facilitatorCounts[s.facilitator.id] ?? 0) + c;
       } else if (guestType === 'guests' && p.isGuest) {
-        totalPlayers++;
-        facilitatorCounts[s.facilitator.id] = (facilitatorCounts[s.facilitator.id] ?? 0) + 1;
+        totalPlayers += c;
+        facilitatorCounts[s.facilitator.id] =
+          (facilitatorCounts[s.facilitator.id] ?? 0) + c;
       } else if (guestType === 'non-guests' && !p.isGuest) {
-        totalPlayers++;
-        facilitatorCounts[s.facilitator.id] = (facilitatorCounts[s.facilitator.id] ?? 0) + 1;
+        totalPlayers += c;
+        facilitatorCounts[s.facilitator.id] =
+          (facilitatorCounts[s.facilitator.id] ?? 0) + c;
       }
     }
   }
