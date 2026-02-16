@@ -34,6 +34,11 @@ const PlayerCardComponent: React.FC<PlayerCardProps> = ({
         <View style={styles.header}>
           <View style={styles.nameRow}>
             <Text style={styles.playerName}>{player.name}</Text>
+            {player.isGameMaster && (
+              <View style={styles.gameMasterBadge}>
+                <Text style={styles.gameMasterText}>Game master</Text>
+              </View>
+            )}
             {personCount > 1 && (
               <View style={styles.countBadge}>
                 <Text style={styles.countBadgeText}>{toPersianNumber(personCount)} نفر</Text>
@@ -150,6 +155,20 @@ const styles = StyleSheet.create({
   guestText: {
     ...theme.typography.caption,
     color: theme.colors.primary,
+    fontFamily: 'Vazirmatn-Regular',
+  },
+  gameMasterBadge: {
+    marginRight: theme.spacing.sm,
+    backgroundColor: '#F59E0B20',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  gameMasterText: {
+    ...theme.typography.caption,
+    color: '#FBBF24',
     fontFamily: 'Vazirmatn-Regular',
   },
   toggleContainer: {

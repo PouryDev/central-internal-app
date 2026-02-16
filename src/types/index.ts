@@ -30,6 +30,8 @@ export interface Player {
   id: string;
   name: string;
   isGuest: boolean;
+  /** True when this card represents the session's Game Master. */
+  isGameMaster?: boolean;
   /** Number of persons this player represents (default 1). */
   count?: number;
   orders: OrderLine[];

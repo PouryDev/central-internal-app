@@ -244,6 +244,7 @@ export const AddPlayerModal: React.FC<AddPlayerModalProps> = ({
       id: editingPlayer?.id ?? Date.now().toString(),
       name: trimmedName,
       isGuest,
+      isGameMaster: editingPlayer?.isGameMaster === true,
       count: personCount,
       orders: orderLines.filter((l) => l.quantity >= 1),
     };

@@ -28,6 +28,36 @@ import { getTodayJalali } from '../utils/date';
 import type { Player, Session } from '../types';
 
 const PLAYERS_PAGE_SIZE = 15;
+const GAME_MASTER_PLAYER_ID = 'game_master';
+
+function upsertGameMasterPlayer(players: Player[], facilitatorName: string): Player[] {
+  const gmIndex = players.findIndex(
+    (p) => p.isGameMaster || p.id === GAME_MASTER_PLAYER_ID
+  );
+  const gameMasterName = facilitatorName.trim() || 'Game master';
+
+  if (gmIndex === -1) {
+    const gameMasterPlayer: Player = {
+      id: GAME_MASTER_PLAYER_ID,
+      name: gameMasterName,
+      isGuest: false,
+      isGameMaster: true,
+      count: 1,
+      orders: [],
+    };
+    return [gameMasterPlayer, ...players];
+  }
+
+  const currentGameMaster = players[gmIndex];
+  const updatedGameMaster: Player = {
+    ...currentGameMaster,
+    id: GAME_MASTER_PLAYER_ID,
+    name: gameMasterName,
+    isGuest: false,
+    isGameMaster: true,
+  };
+  return players.map((p, index) => (index === gmIndex ? updatedGameMaster : p));
+}
 
 interface SessionCreateScreenProps {
   onBack: () => void;
@@ -81,24 +111,38 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
   };
 
   const handleDeletePlayer = useCallback((playerId: string) => {
+    const target = players.find((p) => p.id === playerId);
+    if (target?.isGameMaster) {
+      toast.error('کارت Game master قابل حذف نیست.');
+      return;
+    }
     setPlayers((prev) => prev.filter((p) => p.id !== playerId));
     toast.success('بازیکن حذف شد.');
-  }, []);
+  }, [players]);
 
   const handleUpdatePlayerGuest = useCallback(
     (id: string, isGuest: boolean) => {
       setPlayers((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, isGuest } : p))
+        prev.map((p) =>
+          p.id === id && !p.isGameMaster ? { ...p, isGuest } : p
+        )
       );
     },
     []
   );
 
   const goToStep2 = () => {
-    if (!selectedFacilitator || !selectedHall) {
+    const facilitator = facilitators.find(
+      (f) => String(f.id) === String(selectedFacilitator)
+    );
+    const hall = halls.find(
+      (h) => String(h.id) === String(selectedHall)
+    );
+    if (!facilitator || !hall) {
       toast.error('لطفاً گرداننده و سالن را انتخاب کنید.');
       return;
     }
+    setPlayers((prev) => upsertGameMasterPlayer(prev, facilitator.name));
     setStep(2);
   };
 
@@ -152,12 +196,14 @@ export const SessionCreateScreen: React.FC<SessionCreateScreenProps> = ({
     ({ item: player }) => (
       <PlayerCard
         player={player}
-        showToggle={true}
-        onGuestToggle={(isGuest) =>
-          handleUpdatePlayerGuest(player.id, isGuest)
+        showToggle={!player.isGameMaster}
+        onGuestToggle={
+          player.isGameMaster
+            ? undefined
+            : (isGuest) => handleUpdatePlayerGuest(player.id, isGuest)
         }
         onEdit={() => handleEditPlayer(player)}
-        onDelete={() => handleDeletePlayer(player.id)}
+        onDelete={player.isGameMaster ? undefined : () => handleDeletePlayer(player.id)}
       />
     ),
     [handleUpdatePlayerGuest, handleEditPlayer, handleDeletePlayer]

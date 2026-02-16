@@ -74,17 +74,25 @@ function normalizeOrders(raw: unknown): OrderLine[] {
 /** Normalize a single player (ensure count and orders are new shape). */
 export function normalizePlayer(raw: unknown, fallbackIndex = 0): Player {
   if (!raw || typeof raw !== 'object') {
-    return { id: `player_${fallbackIndex + 1}`, name: '', isGuest: false, count: 1, orders: [] };
+    return {
+      id: `player_${fallbackIndex + 1}`,
+      name: '',
+      isGuest: false,
+      isGameMaster: false,
+      count: 1,
+      orders: [],
+    };
   }
   const p = raw as Record<string, unknown>;
   const rawId = typeof p.id === 'string' ? p.id.trim() : '';
   const id = rawId || `player_${fallbackIndex + 1}`;
   const name = typeof p.name === 'string' ? p.name : '';
-  const isGuest = p.isGuest === true;
+  const isGameMaster = p.isGameMaster === true;
+  const isGuest = isGameMaster ? false : p.isGuest === true;
   const count =
     typeof p.count === 'number' && p.count >= 1 ? p.count : 1;
   const orders = normalizeOrders(p.orders);
-  return { id, name, isGuest, count, orders };
+  return { id, name, isGuest, isGameMaster, count, orders };
 }
 
 /** Normalize session so all players have count and OrderLine[] orders; default shift to 'night'. */

@@ -124,6 +124,11 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
   const handleDeletePlayer = useCallback(
     (playerId: string) => {
       if (!session) return;
+      const target = session.players.find((p) => p.id === playerId);
+      if (target?.isGameMaster) {
+        toast.error('کارت Game master قابل حذف نیست.');
+        return;
+      }
       const nextPlayers = session.players.filter((p) => p.id !== playerId);
       const updated: Session = { ...session, players: nextPlayers };
       updateSession(updated).then(() => {
@@ -138,7 +143,7 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
     (id: string, isGuest: boolean) => {
       if (!session) return;
       const nextPlayers = session.players.map((p) =>
-        p.id === id ? { ...p, isGuest } : p
+        p.id === id && !p.isGameMaster ? { ...p, isGuest } : p
       );
       const updated: Session = { ...session, players: nextPlayers };
       updateSession(updated).then(() => setSession(updated));
@@ -150,15 +155,17 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
     ({ item: player }) => (
       <PlayerCard
         player={player}
-        showToggle={canEditPlayers}
+        showToggle={canEditPlayers && !player.isGameMaster}
         onGuestToggle={
-          canEditPlayers
+          canEditPlayers && !player.isGameMaster
             ? (isGuest) => handleUpdatePlayerGuest(player.id, isGuest)
             : undefined
         }
         onEdit={canEditPlayers ? () => handleEditPlayer(player) : undefined}
         onDelete={
-          canEditPlayers ? () => handleDeletePlayer(player.id) : undefined
+          canEditPlayers && !player.isGameMaster
+            ? () => handleDeletePlayer(player.id)
+            : undefined
         }
       />
     ),
