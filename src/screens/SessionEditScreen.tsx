@@ -113,13 +113,20 @@ export const SessionEditScreen: React.FC<SessionEditScreenProps> = ({
   };
 
   const handleDeletePlayer = useCallback((playerId: string) => {
+    const target = players.find((p) => p.id === playerId);
+    if (target?.isGameMaster) {
+      toast.error('کارت Game master قابل حذف نیست.');
+      return;
+    }
     setPlayers((prev) => prev.filter((p) => p.id !== playerId));
     toast.success('بازیکن حذف شد.');
-  }, []);
+  }, [players]);
 
   const handleUpdatePlayerGuest = useCallback((id: string, isGuest: boolean) => {
     setPlayers((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isGuest } : p))
+      prev.map((p) =>
+        p.id === id && !p.isGameMaster ? { ...p, isGuest } : p
+      )
     );
   }, []);
 
@@ -187,10 +194,14 @@ export const SessionEditScreen: React.FC<SessionEditScreenProps> = ({
     ({ item: player }) => (
       <PlayerCard
         player={player}
-        showToggle
-        onGuestToggle={(isGuest) => handleUpdatePlayerGuest(player.id, isGuest)}
+        showToggle={!player.isGameMaster}
+        onGuestToggle={
+          player.isGameMaster
+            ? undefined
+            : (isGuest) => handleUpdatePlayerGuest(player.id, isGuest)
+        }
         onEdit={() => handleEditPlayer(player)}
-        onDelete={() => handleDeletePlayer(player.id)}
+        onDelete={player.isGameMaster ? undefined : () => handleDeletePlayer(player.id)}
       />
     ),
     [handleUpdatePlayerGuest, handleEditPlayer, handleDeletePlayer]

@@ -232,6 +232,7 @@ export async function getSessionStats(
     const players = rawPlayers.map(normalizePlayer);
     const sessionCount = getTotalPlayerCount(players);
     for (const p of players) {
+      if (p.isGameMaster) continue;
       const c = p.count ?? 1;
       if (guestType === 'all') {
         totalPlayers += c;
