@@ -116,6 +116,8 @@ export function getPlayerCounts(players: Player[]): { userCount: number; guestCo
   let userCount = 0;
   let guestCount = 0;
   for (const p of players) {
+    // Game master card is used for facilitator orders and should not affect player headcount.
+    if (p.isGameMaster) continue;
     const c = typeof p.count === 'number' && p.count >= 1 ? p.count : 1;
     if (p.isGuest) guestCount += c;
     else userCount += c;
