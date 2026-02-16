@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   ListRenderItem,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Card } from '../components/Card';
 import { StatisticsFilterModal } from '../components/StatisticsFilterModal';
@@ -16,6 +17,7 @@ import { UserIcon, FilterIcon, ChartIcon, ClipboardIcon } from '../components/Ic
 import { theme } from '../constants/theme';
 import { toPersianNumber } from '../utils/toPersian';
 import { getDateRangeForPreset } from '../utils/date';
+import { toast } from '../utils/toast';
 import { useData } from '../context/DataContext';
 import { useResponsive } from '../utils/responsive';
 import type { Session } from '../types';
@@ -53,6 +55,7 @@ export const StatisticsScreen: React.FC = () => {
     loading,
     getSessionsPage,
     getSessionStats,
+    deleteSession,
   } = useData();
   const [filters, setFilters] = useState<StatisticsFilters>(getDefaultFilters);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
@@ -65,6 +68,7 @@ export const StatisticsScreen: React.FC = () => {
   } | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [hasAnySessions, setHasAnySessions] = useState<boolean | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
   const pageFilters = useMemo(
     () => toPageFilters(filters),
@@ -101,6 +105,11 @@ export const StatisticsScreen: React.FC = () => {
     [getSessionsPage, pageFilters]
   );
 
+  const refreshHasAnySessions = useCallback(async () => {
+    const result = await getSessionsPage(0, 1, {});
+    setHasAnySessions(result.total > 0);
+  }, [getSessionsPage]);
+
   useEffect(() => {
     loadStats();
     loadSessions(0, false);
@@ -108,11 +117,50 @@ export const StatisticsScreen: React.FC = () => {
 
   useEffect(() => {
     if (hasAnySessions === null && !loading) {
-      getSessionsPage(0, 1, {}).then((r) =>
-        setHasAnySessions(r.total > 0)
-      );
+      refreshHasAnySessions();
     }
-  }, [hasAnySessions, loading, getSessionsPage]);
+  }, [hasAnySessions, loading, refreshHasAnySessions]);
+
+  const performDeleteSession = useCallback(
+    async (sessionId: string) => {
+      setDeletingSessionId(sessionId);
+      try {
+        await deleteSession(sessionId);
+        await Promise.all([
+          loadStats(),
+          loadSessions(0, false),
+          refreshHasAnySessions(),
+        ]);
+        toast.success('سانس حذف شد.');
+      } catch {
+        toast.error('حذف سانس با خطا مواجه شد.');
+      } finally {
+        setDeletingSessionId(null);
+      }
+    },
+    [deleteSession, loadStats, loadSessions, refreshHasAnySessions]
+  );
+
+  const handleDeleteSession = useCallback(
+    (sessionId: string) => {
+      if (deletingSessionId) return;
+      Alert.alert(
+        'حذف سانس',
+        'آیا از حذف این سانس مطمئن هستید؟',
+        [
+          { text: 'انصراف', style: 'cancel' },
+          {
+            text: 'حذف',
+            style: 'destructive',
+            onPress: () => {
+              void performDeleteSession(sessionId);
+            },
+          },
+        ]
+      );
+    },
+    [deletingSessionId, performDeleteSession]
+  );
 
   const hasMore = sessions.length < total;
 
@@ -122,8 +170,17 @@ export const StatisticsScreen: React.FC = () => {
   }, [hasMore, sessions.length, loadSessions]);
 
   const renderSessionItem: ListRenderItem<Session> = useCallback(
-    ({ item: session }) => <StatisticsSessionCard session={session} />,
-    []
+    ({ item: session }) => (
+      <StatisticsSessionCard
+        session={session}
+        onDelete={() => handleDeleteSession(session.id)}
+        deleting={deletingSessionId === session.id}
+        deleteDisabled={
+          deletingSessionId !== null && deletingSessionId !== session.id
+        }
+      />
+    ),
+    [deletingSessionId, handleDeleteSession]
   );
 
   const hasActiveFilters =

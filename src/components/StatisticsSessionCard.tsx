@@ -1,5 +1,11 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { Card } from './Card';
 import { StatusBadge } from './StatusBadge';
 import {
@@ -15,11 +21,17 @@ import type { Session } from '../types';
 interface StatisticsSessionCardProps {
   session: Session;
   onPress?: () => void;
+  onDelete?: () => void;
+  deleting?: boolean;
+  deleteDisabled?: boolean;
 }
 
 export const StatisticsSessionCard: React.FC<StatisticsSessionCardProps> = ({
   session,
   onPress,
+  onDelete,
+  deleting = false,
+  deleteDisabled = false,
 }) => {
   const persianId = toPersianNumber(session.id);
   const persianDate = toPersianNumber(formatDateForDisplay(session.date));
@@ -63,6 +75,29 @@ export const StatisticsSessionCard: React.FC<StatisticsSessionCardProps> = ({
               <Text style={styles.metaText}>مهمان: {persianGuest}</Text>
             </View>
           </View>
+          {onDelete ? (
+            <View style={styles.actionsRow}>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={onDelete}
+                activeOpacity={0.7}
+                disabled={deleting || deleteDisabled}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color={theme.colors.error} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.deleteButtonText,
+                      deleteDisabled && styles.deleteButtonTextDisabled,
+                    ]}
+                  >
+                    حذف سانس
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
       </View>
     </Card>
@@ -130,5 +165,28 @@ const styles = StyleSheet.create({
     ...theme.typography.small,
     color: theme.colors.textSecondary,
     fontFamily: 'Vazirmatn-Regular',
+  },
+  actionsRow: {
+    marginTop: theme.spacing.md,
+    flexDirection: 'row',
+  },
+  deleteButton: {
+    borderWidth: 1,
+    borderColor: theme.colors.error,
+    borderRadius: theme.borderRadius.sm,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    minWidth: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButtonText: {
+    ...theme.typography.caption,
+    color: theme.colors.error,
+    fontFamily: 'Vazirmatn-Bold',
+  },
+  deleteButtonTextDisabled: {
+    color: theme.colors.textSecondary,
+    opacity: 0.6,
   },
 });
