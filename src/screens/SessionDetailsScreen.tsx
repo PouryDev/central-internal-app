@@ -8,11 +8,15 @@ import {
   ListRenderItem,
   TouchableOpacity,
   I18nManager,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { toast } from '../utils/toast';
 import { Button } from '../components/Button';
 import { PlayerCard } from '../components/PlayerCard';
+import { AddPlayerModal } from '../components/AddPlayerModal';
 import { Card } from '../components/Card';
 import { StatusBadge } from '../components/StatusBadge';
 import { UserIcon, BuildingIcon, ClockIcon, ClipboardIcon, ChevronIcon, UsersIcon } from '../components/Icons';
@@ -40,11 +44,20 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
   onEditSession,
 }) => {
   const { contentMaxWidth, isTablet } = useResponsive();
-  const { getSessionById, loading } = useData();
+  const {
+    getSessionById,
+    updateSession,
+    menuItems,
+    categories,
+    loading,
+  } = useData();
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(PLAYERS_PAGE_SIZE);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [playerModalVisible, setPlayerModalVisible] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const canEditPlayers = Boolean(onEditSession);
 
   useEffect(() => {
     setVisibleCount(PLAYERS_PAGE_SIZE);
@@ -75,9 +88,86 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
     }
   }, [onMarkAsPaid]);
 
+  const handleEditPlayer = useCallback((player: Player) => {
+    setEditingPlayer(player);
+    setPlayerModalVisible(true);
+  }, []);
+
+  const handleAddPlayer = useCallback(() => {
+    setEditingPlayer(null);
+    setPlayerModalVisible(true);
+  }, []);
+
+  const handleSavePlayer = useCallback(
+    (player: Player) => {
+      if (!session) return;
+      let nextPlayers: Player[];
+      if (editingPlayer) {
+        nextPlayers = session.players.map((p) =>
+          p.id === player.id ? player : p
+        );
+      } else {
+        nextPlayers = [...session.players, player];
+        setVisibleCount((prev) => Math.max(prev, session.players.length + 1));
+      }
+      const updated: Session = { ...session, players: nextPlayers };
+      updateSession(updated).then(() => {
+        setSession(updated);
+        setEditingPlayer(null);
+        setPlayerModalVisible(false);
+        toast.success(editingPlayer ? 'بازیکن ویرایش شد.' : 'بازیکن اضافه شد.');
+      });
+    },
+    [session, editingPlayer, updateSession]
+  );
+
+  const handleDeletePlayer = useCallback(
+    (playerId: string) => {
+      if (!session) return;
+      const nextPlayers = session.players.filter((p) => p.id !== playerId);
+      const updated: Session = { ...session, players: nextPlayers };
+      updateSession(updated).then(() => {
+        setSession(updated);
+        toast.success('بازیکن حذف شد.');
+      });
+    },
+    [session, updateSession]
+  );
+
+  const handleUpdatePlayerGuest = useCallback(
+    (id: string, isGuest: boolean) => {
+      if (!session) return;
+      const nextPlayers = session.players.map((p) =>
+        p.id === id ? { ...p, isGuest } : p
+      );
+      const updated: Session = { ...session, players: nextPlayers };
+      updateSession(updated).then(() => setSession(updated));
+    },
+    [session, updateSession]
+  );
+
   const renderItem: ListRenderItem<Player> = useCallback(
-    ({ item: player }) => <PlayerCard player={player} showToggle={false} />,
-    []
+    ({ item: player }) => (
+      <PlayerCard
+        player={player}
+        showToggle={canEditPlayers}
+        onGuestToggle={
+          canEditPlayers
+            ? (isGuest) => handleUpdatePlayerGuest(player.id, isGuest)
+            : undefined
+        }
+        onEdit={canEditPlayers ? () => handleEditPlayer(player) : undefined}
+        onDelete={
+          canEditPlayers ? () => handleDeletePlayer(player.id) : undefined
+        }
+      />
+    ),
+    [
+      canEditPlayers,
+      handleEditPlayer,
+      handleDeletePlayer,
+      handleUpdatePlayerGuest,
+    ]
   );
 
   const renderListHeader = useCallback(
@@ -124,11 +214,22 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
           </Card>
 
           <View style={styles.playersSection}>
-            <Text style={styles.sectionTitle}>بازیکنان</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>بازیکنان</Text>
+              {canEditPlayers && (
+                <TouchableOpacity
+                  style={styles.addPlayerButton}
+                  onPress={handleAddPlayer}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.addPlayerButtonText}>+ افزودن بازیکن</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </>
       ) : null,
-    [session]
+    [session, canEditPlayers, handleAddPlayer]
   );
 
   const renderListFooter = useCallback(
@@ -212,23 +313,42 @@ export const SessionDetailsScreen: React.FC<SessionDetailsScreenProps> = ({
         </View>
       </LinearGradient>
 
-      <FlatList
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.content,
-          isTablet && {
-            maxWidth: contentMaxWidth,
-            alignSelf: 'center' as const,
-          },
-        ]}
-        data={displayedPlayers}
-        keyExtractor={(item, index) => item.id || `player_${index}`}
-        renderItem={renderItem}
-        ListHeaderComponent={renderListHeader}
-        ListFooterComponent={renderListFooter}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.3}
-      />
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <FlatList
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.content,
+            isTablet && {
+              maxWidth: contentMaxWidth,
+              alignSelf: 'center' as const,
+            },
+          ]}
+          data={displayedPlayers}
+          keyExtractor={(item, index) => item.id || `player_${index}`}
+          renderItem={renderItem}
+          ListHeaderComponent={renderListHeader}
+          ListFooterComponent={renderListFooter}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.3}
+          keyboardShouldPersistTaps="handled"
+        />
+        {canEditPlayers && (
+          <AddPlayerModal
+            visible={playerModalVisible}
+            onClose={() => {
+              setPlayerModalVisible(false);
+              setEditingPlayer(null);
+            }}
+            onSave={handleSavePlayer}
+            editingPlayer={editingPlayer}
+            menuItems={menuItems}
+            categories={categories}
+          />
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -336,14 +456,35 @@ const styles = StyleSheet.create({
     fontFamily: 'Vazirmatn-Regular',
     fontWeight: '600',
   },
+  keyboardView: {
+    flex: 1,
+  },
   playersSection: {
     marginBottom: theme.spacing.lg,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   sectionTitle: {
     ...theme.typography.h2,
     color: theme.colors.text,
     fontFamily: 'Vazirmatn-Bold',
     marginBottom: theme.spacing.md,
+  },
+  addPlayerButton: {
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.primary + '20',
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  addPlayerButtonText: {
+    ...theme.typography.body,
+    color: theme.colors.primary,
+    fontFamily: 'Vazirmatn-Bold',
   },
   footerActions: {
     flexDirection: 'row',
