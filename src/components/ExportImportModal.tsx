@@ -14,11 +14,31 @@ import {
 import { Button } from './Button';
 import { theme } from '../constants/theme';
 import { toast } from '../utils/toast';
-import { useData } from '../context/DataContext';
+import { useData, type ExportDataOptions } from '../context/DataContext';
 import { useResponsive } from '../utils/responsive';
 
 const EXPORT_IMPORT_PASSWORD = '56332154';
 const MODAL_MAX_WIDTH = 480;
+const DEFAULT_EXPORT_OPTIONS: Required<ExportDataOptions> = {
+  includeSessions: true,
+  includeMenu: true,
+  includeFacilitators: true,
+  includeHalls: true,
+};
+const EXPORT_OPTION_ITEMS: Array<{
+  key: keyof typeof DEFAULT_EXPORT_OPTIONS;
+  faLabel: string;
+  enLabel: string;
+}> = [
+  { key: 'includeSessions', faLabel: 'سانس', enLabel: 'Sessions' },
+  {
+    key: 'includeMenu',
+    faLabel: 'منو (آیتم‌ها و دسته‌ها)',
+    enLabel: 'Menu (Items and categories)',
+  },
+  { key: 'includeFacilitators', faLabel: 'گرداننده', enLabel: 'Game Masters' },
+  { key: 'includeHalls', faLabel: 'سالن', enLabel: 'Halls' },
+];
 
 interface ExportImportModalProps {
   visible: boolean;
@@ -38,12 +58,14 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
   const [password, setPassword] = useState('');
   const [unlocked, setUnlocked] = useState(false);
   const [exportImportText, setExportImportText] = useState('');
+  const [exportOptions, setExportOptions] = useState(DEFAULT_EXPORT_OPTIONS);
 
   useEffect(() => {
     if (visible) {
       setPassword('');
       setUnlocked(false);
       setExportImportText('');
+      setExportOptions(DEFAULT_EXPORT_OPTIONS);
     }
   }, [visible]);
 
@@ -56,9 +78,9 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
   }, [password]);
 
   const handleExport = useCallback(async () => {
-    const data = await exportData();
+    const data = await exportData(exportOptions);
     setExportImportText(data);
-  }, [exportData]);
+  }, [exportData, exportOptions]);
 
   const handleImport = useCallback(async () => {
     const ok = await importData(exportImportText);
@@ -74,6 +96,14 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
     setUnlocked(false);
     setPassword('');
     setExportImportText('');
+    setExportOptions(DEFAULT_EXPORT_OPTIONS);
+  }, []);
+
+  const toggleExportOption = useCallback((key: keyof typeof DEFAULT_EXPORT_OPTIONS) => {
+    setExportOptions((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
   }, []);
 
   return (
@@ -133,6 +163,28 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
                 <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
                   <Text style={styles.backBtnText}>بازگشت</Text>
                 </TouchableOpacity>
+              </View>
+              <View style={styles.optionsCard}>
+                <Text style={styles.optionsTitle}>داده‌های خروجی</Text>
+                {EXPORT_OPTION_ITEMS.map((option) => {
+                  const checked = exportOptions[option.key];
+                  return (
+                    <TouchableOpacity
+                      key={option.key}
+                      style={styles.optionRow}
+                      onPress={() => toggleExportOption(option.key)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.optionLabelWrap}>
+                        <Text style={styles.optionFaLabel}>{option.faLabel}</Text>
+                        <Text style={styles.optionEnLabel}>{option.enLabel}</Text>
+                      </View>
+                      <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+                        {checked ? <View style={styles.checkboxInner} /> : null}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
               <TextInput
                 style={styles.textArea}
@@ -235,6 +287,63 @@ const styles = StyleSheet.create({
     ...theme.typography.body,
     color: theme.colors.primary,
     fontFamily: 'Vazirmatn-Bold',
+  },
+  optionsCard: {
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    marginBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+  },
+  optionsTitle: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Vazirmatn-Bold',
+    marginBottom: theme.spacing.xs,
+  },
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border + '66',
+  },
+  optionLabelWrap: {
+    flex: 1,
+    marginRight: theme.spacing.sm,
+  },
+  optionFaLabel: {
+    ...theme.typography.body,
+    color: theme.colors.text,
+    fontFamily: 'Vazirmatn-Bold',
+  },
+  optionEnLabel: {
+    ...theme.typography.small,
+    color: theme.colors.textSecondary,
+    fontFamily: 'Vazirmatn-Regular',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.card,
+  },
+  checkboxChecked: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary,
+  },
+  checkboxInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 2,
+    backgroundColor: theme.colors.text,
   },
   textArea: {
     backgroundColor: theme.colors.background,

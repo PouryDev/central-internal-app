@@ -17,6 +17,13 @@ import type {
 import type { SessionsPageFilters, SessionsPageResult, SessionStats } from '../storage/database';
 import * as db from '../storage/database';
 
+export interface ExportDataOptions {
+  includeSessions?: boolean;
+  includeMenu?: boolean;
+  includeFacilitators?: boolean;
+  includeHalls?: boolean;
+}
+
 interface DataContextValue {
   facilitators: Facilitator[];
   halls: Hall[];
@@ -53,7 +60,7 @@ interface DataContextValue {
   addCategory: (category: Category) => Promise<void>;
   updateCategory: (id: string, updates: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
-  exportData: () => Promise<string>;
+  exportData: (options?: ExportDataOptions) => Promise<string>;
   importData: (jsonString: string) => Promise<boolean>;
   seedWithMockData: () => Promise<void>;
 }
@@ -227,15 +234,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setCategories((prev) => prev.filter((c) => c.id !== id));
   }, []);
 
-  const exportData = useCallback(async () => {
-    const sessions = await db.getSessionsForExport();
+  const exportData = useCallback(async (options?: ExportDataOptions) => {
+    const includeSessions = options?.includeSessions ?? true;
+    const includeMenu = options?.includeMenu ?? true;
+    const includeFacilitators = options?.includeFacilitators ?? true;
+    const includeHalls = options?.includeHalls ?? true;
+    const sessions = includeSessions ? await db.getSessionsForExport() : [];
+
     return JSON.stringify(
       {
         sessions,
-        facilitators,
-        halls,
-        menuItems,
-        categories,
+        facilitators: includeFacilitators ? facilitators : [],
+        halls: includeHalls ? halls : [],
+        menuItems: includeMenu ? menuItems : [],
+        categories: includeMenu ? categories : [],
       },
       null,
       2
